@@ -76,12 +76,6 @@ export async function stremioPassword(email: string, password: string): Promise<
   return stremioAccount(await stremio.login(email.trim(), password), true);
 }
 
-export async function stremioToken(token: string): Promise<StremioAccount> {
-  const key = token.trim().replace(/^"|"$/g, '');
-  if (!key) throw new Error('Paste your Stremio token first.');
-  return stremioAccount(key, false);
-}
-
 export interface LinkCode {
   code: string;
   url: string;

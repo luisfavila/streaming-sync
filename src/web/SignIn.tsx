@@ -25,12 +25,12 @@ function saveTraktApp(a: TraktApp | undefined) {
   }
 }
 
-type Method = 'link' | 'password' | 'token';
+type Method = 'link' | 'password';
 
-const METHOD_LABEL: Record<Method, string> = { link: 'Link code', password: 'Email & password', token: 'Token' };
-/** Sign-in methods per app. A pasted token is only needed for Stremio (e.g. accounts without a password). */
+const METHOD_LABEL: Record<Method, string> = { link: 'Link code', password: 'Email & password' };
+/** Sign-in methods per app. A link code works for any Stremio account, including Facebook and Apple sign-ins. */
 const METHODS: Record<AppKind, Method[]> = {
-  stremio: ['link', 'password', 'token'],
+  stremio: ['link', 'password'],
   nuvio: ['link', 'password'],
   trakt: ['link'],
 };
@@ -44,14 +44,11 @@ const PKCE_REDIRECT = (() => {
   }
 })();
 
-const STREMIO_SNIPPET = 'copy(JSON.parse(localStorage.profile).auth.key)';
-
 export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () => void }) {
   const [app, setApp] = useState<AppKind>('stremio');
   const [method, setMethod] = useState<Method>('link');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [link, setLink] = useState<LinkCode>();
@@ -314,40 +311,6 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
             {busy ? 'Signing in…' : `Sign in to ${appName}`}
           </button>
           <p class="hint">Your password goes only to {appName}. Only the session token it returns is kept.</p>
-        </form>
-      )}
-
-      {shownMethod === 'token' && (
-        <form
-          class="stack"
-          onSubmit={e => {
-            e.preventDefault();
-            run(() => auth.stremioToken(token));
-          }}
-        >
-          <p class="hint">
-            On{' '}
-            <a href="https://web.stremio.com" target="_blank" rel="noopener noreferrer">
-              web.stremio.com
-            </a>
-            , signed in, open the browser console and run:
-            <CopyCode text={STREMIO_SNIPPET} />
-            Then paste what it copied below.
-          </p>
-          <label class="field">
-            <span>{appName} token</span>
-            <input
-              type="password"
-              autocomplete="off"
-              spellcheck={false}
-              required
-              value={token}
-              onInput={e => setToken(e.currentTarget.value)}
-            />
-          </label>
-          <button type="submit" class="btn btn-primary" disabled={busy}>
-            {busy ? 'Checking…' : 'Use this token'}
-          </button>
         </form>
       )}
 

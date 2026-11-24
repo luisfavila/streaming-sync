@@ -243,12 +243,15 @@ try {
     );
   const text = (sel: string): Promise<string> => evaluate(`document.querySelector(${JSON.stringify(sel)})?.innerText ?? ''`);
 
-  // From: Stremio by token. It loads straight away and the Compare panel shows what it has.
-  await evaluate(`(() => { const s = $side('From'); $click(s, 'Token'); return true })()`);
+  // From: Stremio by email and password (the fake's password is the account key). It loads straight
+  // away and the Compare panel shows what it has.
+  await evaluate(`(() => { const s = $side('From'); $click(s, 'Email & password'); return true })()`);
   await sleep(100);
-  await evaluate(`(() => { const s = $side('From'); $type(s.querySelector('input[type=password]'), 'A'); return true })()`);
+  await evaluate(
+    `(() => { const s = $side('From'); $type(s.querySelector('input[type=email]'), 'a@stremio.test'); $type(s.querySelector('input[type=password]'), 'A'); return true })()`,
+  );
   await sleep(100);
-  await evaluate(`(() => { $click($side('From'), 'Use this token'); return true })()`);
+  await evaluate(`(() => { $side('From').querySelector('form').requestSubmit(); return true })()`);
   await waitFor('From signed in', `$side('From').querySelector('.account .who')?.textContent === 'a@stremio.test'`);
   await waitFor('From loaded', `$side('From').querySelector('[data-stat=library] .stat-n')?.textContent === '2'`);
   await waitFor('From-only compare', `document.querySelector('.compare .rows')?.innerText.includes('Test Show')`);
@@ -392,13 +395,13 @@ try {
   await sleep(100);
   await evaluate(`(() => { $click($side('From'), '+ Sign in to another account'); return true })()`);
   await sleep(100);
-  await evaluate(`(() => { $click($side('From'), 'Token'); return true })()`);
+  await evaluate(`(() => { $click($side('From'), 'Email & password'); return true })()`);
   await sleep(100);
   await evaluate(
-    `(() => { $type($side('From').querySelector('input[type=password]'), ${JSON.stringify(LONG)}); return true })()`,
+    `(() => { const s = $side('From'); $type(s.querySelector('input[type=email]'), 'long@stremio.test'); $type(s.querySelector('input[type=password]'), ${JSON.stringify(LONG)}); return true })()`,
   );
   await sleep(100);
-  await evaluate(`(() => { $click($side('From'), 'Use this token'); return true })()`);
+  await evaluate(`(() => { $side('From').querySelector('form').requestSubmit(); return true })()`);
   await waitFor(
     'long account signed in',
     `$side('From').querySelector('.account .who')?.textContent === ${JSON.stringify(`${LONG.toLowerCase()}@stremio.test`)}`,
