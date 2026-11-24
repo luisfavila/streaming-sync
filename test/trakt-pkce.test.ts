@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { relayTraktCallback, traktPkce } from '../src/auth.ts';
-import { pkcePair, TraktClient } from '../src/providers/trakt/api.ts';
+import { pkcePair, refreshRedirectUri, TraktClient } from '../src/providers/trakt/api.ts';
 import { fakeFetch, TRAKT_APP, trakt, traktAuthorize } from './fakes.ts';
 
 const realFetch = globalThis.fetch;
@@ -81,4 +81,19 @@ test('declining on Trakt, and a blocked window, give clear errors', async () => 
 test("only Trakt sign-in callbacks are relayed, so the page's own links still load the app", () => {
   assert.equal(relayTraktCallback(new URLSearchParams('')), false);
   assert.equal(relayTraktCallback(new URLSearchParams({ code: 'x', state: 'other' })), false);
+});
+
+test('code sign-in sessions refresh with the page\'s https address on the built-in app, else with "no redirect"', () => {
+  const builtIn = { app: { clientId: 'built-in' }, redirectUri: REDIRECT };
+  const OOB = 'urn:ietf:wg:oauth:2.0:oob';
+  // A PKCE session keeps the address it signed in with.
+  assert.equal(
+    refreshRedirectUri({ clientId: 'built-in' }, { redirectUri: 'https://other.example/' }, builtIn),
+    'https://other.example/',
+  );
+  // A code session on the built-in (production) app: the page's address, which that app accepts.
+  assert.equal(refreshRedirectUri({ clientId: 'built-in' }, {}, builtIn), REDIRECT);
+  // A code session on a user's own app, or a page built without a redirect URI: "no redirect".
+  assert.equal(refreshRedirectUri({ clientId: 'users-own' }, {}, builtIn), OOB);
+  assert.equal(refreshRedirectUri({ clientId: 'built-in' }, {}, { app: { clientId: 'built-in' } }), OOB);
 });

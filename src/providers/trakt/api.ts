@@ -209,6 +209,22 @@ export async function pollDeviceCode(app: TraktApp, code: string): Promise<Trakt
   }
 }
 
+/**
+ * The redirect_uri a refresh sends. A PKCE session sends the one it signed in with. A device-code
+ * session signed in without one: for the page's built-in app it sends the page's own https
+ * address when there is one (a production Trakt app only takes https redirect URIs, not the
+ * "no redirect" value), else that "no redirect" value, which apps set up by users have.
+ */
+export function refreshRedirectUri(
+  app: TraktApp,
+  session: Pick<TraktSession, 'redirectUri'>,
+  builtIn: { app?: TraktApp; redirectUri?: string } = { app: BUILT_IN_APP, redirectUri: BUILT_IN_REDIRECT_URI },
+): string {
+  if (session.redirectUri) return session.redirectUri;
+  if (builtIn.redirectUri && builtIn.app?.clientId === app.clientId) return builtIn.redirectUri;
+  return OOB;
+}
+
 export async function refreshSession(
   app: TraktApp,
   session: Pick<TraktSession, 'refreshToken' | 'redirectUri'>,
@@ -220,7 +236,7 @@ export async function refreshSession(
       refresh_token: session.refreshToken,
       client_id: app.clientId,
       ...(session.redirectUri ? {} : secret(app)),
-      redirect_uri: session.redirectUri ?? OOB,
+      redirect_uri: refreshRedirectUri(app, session),
       grant_type: 'refresh_token',
     },
     clientId: app.clientId,
