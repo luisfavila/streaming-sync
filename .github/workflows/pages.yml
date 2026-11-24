@@ -1,6 +1,7 @@
 # Tests, builds and publishes the page to GitHub Pages on every push to main.
 #
-# Optional repository variables (Settings → Secrets and variables → Actions → Variables):
+# Optional variables, on the repository (Settings → Secrets and variables → Actions → Variables)
+# or on the github-pages environment (Settings → Environments → github-pages):
 #   VITE_TRAKT_CLIENT_ID     the page's built-in Trakt app (visitors then needn't set up their own)
 #   VITE_TRAKT_REDIRECT_URI  this page's address, e.g. https://you.github.io/streaming-sync/, to
 #                            offer "Sign in with Trakt" (also add it to the Trakt app's Redirect uris)
@@ -25,6 +26,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # The Trakt settings may be set on the github-pages environment rather than the repository;
+    # running the build in that environment makes both kinds visible here.
+    environment: github-pages
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,7 +40,7 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
-          # Repository variables, or secrets of the same name (both end up public in the page anyway).
+          # Variables, or secrets of the same name (both end up public in the page anyway).
           VITE_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID || secrets.VITE_TRAKT_CLIENT_ID }}
           VITE_TRAKT_REDIRECT_URI: ${{ vars.VITE_TRAKT_REDIRECT_URI || secrets.VITE_TRAKT_REDIRECT_URI }}
       - uses: actions/configure-pages@v5
