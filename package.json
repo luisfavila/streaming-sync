@@ -1,0 +1,25 @@
+{
+  "name": "streaming-sync",
+  "version": "0.1.0",
+  "description": "A web page that syncs library, watch history, progress and add-ons between Stremio and Nuvio accounts, in any direction.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc",
+    "e2e": "VITE_TRAKT_CLIENT_ID= vite build --outDir dist-e2e --emptyOutDir && node test/e2e-browser.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pako": "^2.0.4",
+    "typescript": "^5.9.0",
+    "vite": "^6.4.6"
+  },
+  "dependencies": {
+    "pako": "^2.2.0",
+    "preact": "^10.29.8"
+  }
+}

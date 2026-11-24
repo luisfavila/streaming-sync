@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.env
+dist/
+.env.*
+!.env.example
+dist-e2e/
