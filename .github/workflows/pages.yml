@@ -36,8 +36,9 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
-          VITE_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
-          VITE_TRAKT_REDIRECT_URI: ${{ vars.VITE_TRAKT_REDIRECT_URI }}
+          # Repository variables, or secrets of the same name (both end up public in the page anyway).
+          VITE_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID || secrets.VITE_TRAKT_CLIENT_ID }}
+          VITE_TRAKT_REDIRECT_URI: ${{ vars.VITE_TRAKT_REDIRECT_URI || secrets.VITE_TRAKT_REDIRECT_URI }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
