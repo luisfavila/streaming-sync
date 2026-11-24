@@ -273,10 +273,15 @@ export function profileName(account: Account, profileIndex: number | undefined):
   return account.app === 'nuvio' ? account.profiles.find(p => p.index === (profileIndex ?? 1))?.name : undefined;
 }
 
+/** The account's name as shown: the email, or "@username" for Trakt. */
+export function accountName(account: Account): string {
+  return account.app === 'trakt' && !account.who.startsWith('@') ? `@${account.who}` : account.who;
+}
+
 export function sideLabel(account: Account, profileIndex?: number): string {
   const app = APP_NAME[account.app];
   const profile = account.app === 'nuvio' && account.profiles.length > 1 ? ` · ${profileName(account, profileIndex)}` : '';
-  return `${app} (${account.who}${profile})`;
+  return `${app} (${accountName(account)}${profile})`;
 }
 
 /**

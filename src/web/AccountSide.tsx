@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
-import { type Account, APP_NAME, type Side } from '../auth.ts';
+import { type Account, APP_NAME, accountName, type Side } from '../auth.ts';
 import { SignIn } from './SignIn.tsx';
 
 export function AccountSide(props: {
@@ -51,7 +51,7 @@ export function AccountSide(props: {
       onClick={() => pick(a)}
     >
       <span class={`badge badge-${a.app}`}>{APP_NAME[a.app]}</span>
-      <span class="who">{a.who}</span>
+      <span class="who">{accountName(a)}</span>
       {onOther(a) && (
         <span class="tag" title={`Picking it here swaps From and To`}>
           On {props.otherTitle}
@@ -66,8 +66,8 @@ export function AccountSide(props: {
       <div class="account">
         <div class="account-head">
           <span class={`badge badge-${account.app}`}>{APP_NAME[account.app]}</span>
-          <span class="who" title={account.who}>
-            {account.who}
+          <span class="who" title={accountName(account)}>
+            {accountName(account)}
           </span>
         </div>
         {account.app === 'nuvio' && account.profiles.length > 1 && (
@@ -135,10 +135,10 @@ export function AccountSide(props: {
                 type="button"
                 class="btn btn-quiet btn-small"
                 disabled={props.disabled}
-                aria-label={`Sign out of ${a.who}`}
+                aria-label={`Sign out of ${accountName(a)}`}
                 title="Sign out and forget"
                 onClick={() => {
-                  if (confirm(`Sign out of ${APP_NAME[a.app]} (${a.who}) and forget it here?`)) props.onForget(a);
+                  if (confirm(`Sign out of ${APP_NAME[a.app]} (${accountName(a)}) and forget it here?`)) props.onForget(a);
                 }}
               >
                 Sign out

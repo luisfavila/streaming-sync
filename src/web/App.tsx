@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { type Account, APP_NAME, forgetClient, openProvider, profileName, type Side, sideLabel, signOut } from '../auth.ts';
+import {
+  type Account,
+  APP_NAME,
+  accountName,
+  forgetClient,
+  openProvider,
+  profileName,
+  type Side,
+  sideLabel,
+  signOut,
+} from '../auth.ts';
 import { getMeta } from '../meta/cinemeta.ts';
 import { type AddonEntry, type ChangeSet, SCOPES, type Snapshot } from '../model.ts';
 import { type ApplyReport, mapLimit, type Provider, type Skipped } from '../providers/types.ts';
@@ -35,7 +45,7 @@ const sameSide = (a?: Side, b?: Side) => !!a && !!b && keyOf(a) === keyOf(b);
 const SCOPE_LABEL = { library: 'Library', watched: 'Watched', progress: 'Continue Watching', addons: 'Add-ons' } as const;
 /** The account, plus the profile when a Nuvio account has several. */
 const whoLabel = (a: Account, profileIndex?: number) =>
-  a.app === 'nuvio' && a.profiles.length > 1 ? `${a.who} · ${profileName(a, profileIndex)} profile` : a.who;
+  a.app === 'nuvio' && a.profiles.length > 1 ? `${a.who} · ${profileName(a, profileIndex)} profile` : accountName(a);
 /** "The 100 S02E03" for a skipped episode, falling back to its key when the title has no known name. */
 const skippedName = (s: Skipped, names: Map<string, string>) => {
   const name = s.id && names.get(s.id);

@@ -425,7 +425,7 @@ try {
   await evaluate(`(() => { $side('From').querySelector('.signin form').requestSubmit(); return true })()`);
   await sleep(100);
   await evaluate(`(() => { $click($side('From'), 'Get a code'); return true })()`);
-  await waitFor('Trakt signed in', `$side('From').querySelector('.account .who')?.textContent === 'traktuser'`);
+  await waitFor('Trakt signed in', `$side('From').querySelector('.account .who')?.textContent === '@traktuser'`);
   await waitFor('Trakt loaded', `!!$side('From').querySelector('[data-stat=library]')`);
   assert.equal(await evaluate(`$side('From').querySelectorAll('.stat').length`), 3, 'Trakt has no add-ons tile');
   assert.equal(trakt.secretsSent, 0, 'no client secret is sent when the app has none');
