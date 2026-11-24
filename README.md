@@ -9,6 +9,10 @@ A web page that shows what two streaming-app accounts each have, side by side, a
 
 It runs entirely in your browser. Sign-ins and data go straight from the page to Stremio, Nuvio and Trakt, whose APIs accept requests from any web page. There is no server, so it can be hosted as static files anywhere.
 
+**Use it:** https://luisfavila.github.io/streaming-sync/
+
+![Streaming Sync comparing a Stremio account with a Trakt account: one library title and 91 watched episodes ready to copy to Trakt](docs/screenshots/stremio-to-trakt.png)
+
 ## Using it
 
 1. **From:** sign in to the account to copy from. **To:** sign in to the account to copy to. Each side loads as soon as it's chosen and shows what it holds.
@@ -21,6 +25,8 @@ It runs entirely in your browser. Sign-ins and data go straight from the page to
    - Afterwards the page re-reads To and confirms everything arrived, or lists what didn't.
 
 To keep two accounts in step both ways, sync once, press the swap button, and sync again.
+
+![Two Stremio accounts side by side, with the two library titles only From has ticked to copy](docs/screenshots/stremio-to-stremio.png)
 
 ### Signing in
 
