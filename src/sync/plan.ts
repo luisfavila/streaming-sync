@@ -1,13 +1,13 @@
 import {
+  addonKey,
   type ChangeSet,
+  isLocalOnlyAddon,
   type LibraryEntry,
   type ProgressEntry,
-  type WatchedEntry,
   type Scope,
   type Snapshot,
-  addonKey,
-  isLocalOnlyAddon,
   videoKey,
+  type WatchedEntry,
 } from '../model.ts';
 
 export interface PlanNote {
@@ -19,7 +19,10 @@ export interface PlanNote {
 }
 
 /** Why the target app can't take an entry (e.g. Trakt and playback under 1%), or undefined if it can. */
-export type Unsupported = (scope: 'library' | 'watched' | 'progress', entry: LibraryEntry | WatchedEntry | ProgressEntry) => string | undefined;
+export type Unsupported = (
+  scope: 'library' | 'watched' | 'progress',
+  entry: LibraryEntry | WatchedEntry | ProgressEntry,
+) => string | undefined;
 
 export interface Plan {
   changes: ChangeSet;
@@ -49,7 +52,7 @@ export function plan(source: Snapshot, target: Snapshot, scopes: readonly Scope[
   };
 
   if (scopes.includes('library')) {
-    const have = new Set(target.library.map((e) => e.id));
+    const have = new Set(target.library.map(e => e.id));
     const seen = new Set<string>();
     for (const e of source.library) {
       if (have.has(e.id) || seen.has(e.id)) continue;
@@ -82,11 +85,15 @@ export function plan(source: Snapshot, target: Snapshot, scopes: readonly Scope[
     };
     const targetLatest = latest(target.progress);
     const watchedOnTarget = new Map<string, string>();
-    for (const w of target.watched) if ((watchedOnTarget.get(videoKey(w)) ?? '') < w.watchedAt) watchedOnTarget.set(videoKey(w), w.watchedAt);
+    for (const w of target.watched)
+      if ((watchedOnTarget.get(videoKey(w)) ?? '') < w.watchedAt) watchedOnTarget.set(videoKey(w), w.watchedAt);
     for (const p of latest(source.progress).values()) {
       const t = targetLatest.get(p.id);
       if (t && Date.parse(t.updatedAt) + PROGRESS_SLACK_MS >= Date.parse(p.updatedAt)) {
-        progressSkipped.set(p.id, Date.parse(t.updatedAt) >= Date.parse(p.updatedAt) ? 'To’s is newer' : 'about as recent as To’s');
+        progressSkipped.set(
+          p.id,
+          Date.parse(t.updatedAt) >= Date.parse(p.updatedAt) ? 'To’s is newer' : 'about as recent as To’s',
+        );
         continue;
       }
       // Finished on To: skip, unless To has progress elsewhere in the title and finished this
@@ -105,7 +112,7 @@ export function plan(source: Snapshot, target: Snapshot, scopes: readonly Scope[
   }
 
   if (scopes.includes('addons')) {
-    const have = new Set(target.addons.map((a) => addonKey(a.manifestUrl)));
+    const have = new Set(target.addons.map(a => addonKey(a.manifestUrl)));
     const seen = new Set<string>();
     for (const a of source.addons) {
       const k = addonKey(a.manifestUrl);

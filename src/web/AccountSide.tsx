@@ -3,7 +3,6 @@ import { useState } from 'preact/hooks';
 import { type Account, APP_NAME, type Side } from '../auth.ts';
 import { SignIn } from './SignIn.tsx';
 
-
 export function AccountSide(props: {
   title: string;
   side: Side | undefined;
@@ -23,20 +22,20 @@ export function AccountSide(props: {
   onForget: (a: Account) => void;
 }) {
   const { side, accounts } = props;
-  const account = side && accounts.find((a) => a.id === side.accountId);
+  const account = side && accounts.find(a => a.id === side.accountId);
   const [adding, setAdding] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const multiProfile = (a: Account) => a.app === 'nuvio' && a.profiles.length > 1;
   /** Used by the other side, so picking it here swaps the sides. */
   const onOther = (a: Account) => a.id === props.other?.accountId && !multiProfile(a);
-  const free = accounts.filter((a) => !onOther(a));
+  const free = accounts.filter(a => !onOther(a));
 
   const pick = (a: Account) => {
     let profileIndex: number | undefined;
     if (a.app === 'nuvio') {
       // Same account as the other side: start on a different profile.
       const taken = a.id === props.other?.accountId ? props.other.profileIndex : undefined;
-      profileIndex = (a.profiles.find((p) => p.index !== taken) ?? a.profiles[0])?.index ?? 1;
+      profileIndex = (a.profiles.find(p => p.index !== taken) ?? a.profiles[0])?.index ?? 1;
     }
     props.onChange({ accountId: a.id, profileIndex });
     setChoosing(false);
@@ -44,7 +43,13 @@ export function AccountSide(props: {
   };
 
   const accountButton = (a: Account) => (
-    <button type="button" class="account-option" aria-current={a.id === side?.accountId} disabled={props.disabled} onClick={() => pick(a)}>
+    <button
+      type="button"
+      class="account-option"
+      aria-current={a.id === side?.accountId}
+      disabled={props.disabled}
+      onClick={() => pick(a)}
+    >
       <span class={`badge badge-${a.app}`}>{APP_NAME[a.app]}</span>
       <span class="who">{a.who}</span>
       {onOther(a) && (
@@ -55,7 +60,7 @@ export function AccountSide(props: {
     </button>
   );
 
-  let body;
+  let body: ComponentChildren;
   if (account && !choosing && !adding) {
     body = (
       <div class="account">
@@ -71,9 +76,9 @@ export function AccountSide(props: {
             <select
               value={String(side!.profileIndex ?? 1)}
               disabled={props.disabled}
-              onChange={(e) => props.onChange({ accountId: account.id, profileIndex: Number(e.currentTarget.value) })}
+              onChange={e => props.onChange({ accountId: account.id, profileIndex: Number(e.currentTarget.value) })}
             >
-              {account.profiles.map((p) => (
+              {account.profiles.map(p => (
                 <option value={String(p.index)}>
                   {p.name}
                   {p.pin ? ' (PIN)' : ''}
@@ -103,7 +108,7 @@ export function AccountSide(props: {
           <div class="reuse">
             <p class="muted">Use the {props.otherTitle} account here (swaps the sides):</p>
             <ul class="account-list">
-              {reuse.map((a) => (
+              {reuse.map(a => (
                 <li>{accountButton(a)}</li>
               ))}
             </ul>
@@ -111,7 +116,7 @@ export function AccountSide(props: {
           </div>
         )}
         <SignIn
-          onSignedIn={(a) => {
+          onSignedIn={a => {
             props.onSignedIn(a);
             pick(a);
           }}
@@ -123,7 +128,7 @@ export function AccountSide(props: {
     body = (
       <div class="stack">
         <ul class="account-list">
-          {accounts.map((a) => (
+          {accounts.map(a => (
             <li>
               {accountButton(a)}
               <button

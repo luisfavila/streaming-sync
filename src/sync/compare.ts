@@ -3,14 +3,14 @@
 
 import {
   type AddonEntry,
+  addonKey,
   type ChangeSet,
   type LibraryEntry,
   type MediaType,
   type ProgressEntry,
   type Snapshot,
-  type WatchedEntry,
-  addonKey,
   videoKey,
+  type WatchedEntry,
 } from '../model.ts';
 import type { Plan } from './plan.ts';
 
@@ -47,7 +47,8 @@ function state(copy: boolean, from: unknown, to: unknown): RowState {
 
 /** Orders rows: things to copy first, then by name. */
 const byStateThenName = (a: Row<unknown>, b: Row<unknown>) =>
-  STATE_ORDER[a.state] - STATE_ORDER[b.state] || (a.name ?? a.id).localeCompare(b.name ?? b.id, undefined, { sensitivity: 'base' });
+  STATE_ORDER[a.state] - STATE_ORDER[b.state] ||
+  (a.name ?? a.id).localeCompare(b.name ?? b.id, undefined, { sensitivity: 'base' });
 const STATE_ORDER: Record<RowState, number> = { copy: 0, both: 1, toOnly: 2, fromOnly: 3 };
 
 /** Marks rows whose entries the To app can't take (from the plan's notes). */
@@ -65,7 +66,10 @@ function markBlocked<R extends Row<unknown>>(rows: R[], plan: Plan | undefined, 
 
 export function libraryRows(source: Snapshot | undefined, target: Snapshot | undefined, plan: Plan | undefined): LibraryRow[] {
   const rows = new Map<string, LibraryRow>();
-  for (const [side, list] of [['from', source?.library ?? []], ['to', target?.library ?? []]] as const) {
+  for (const [side, list] of [
+    ['from', source?.library ?? []],
+    ['to', target?.library ?? []],
+  ] as const) {
     for (const e of list) {
       const r = rows.get(e.id) ?? { id: e.id, type: e.type, state: 'both' };
       r[side] ??= e;
@@ -74,7 +78,7 @@ export function libraryRows(source: Snapshot | undefined, target: Snapshot | und
       rows.set(e.id, r);
     }
   }
-  const copy = new Set(plan?.changes.library.map((e) => e.id));
+  const copy = new Set(plan?.changes.library.map(e => e.id));
   for (const r of rows.values()) r.state = state(copy.has(r.id), r.from, r.to);
   return markBlocked([...rows.values()], plan, 'library').sort(byStateThenName);
 }
@@ -83,12 +87,23 @@ export function watchedRows(source: Snapshot | undefined, target: Snapshot | und
   const rows = new Map<string, WatchedRow>();
   const row = (e: WatchedEntry) => {
     let r = rows.get(e.id);
-    if (!r) rows.set(e.id, (r = { id: e.id, type: e.type, missing: [], state: 'both' }));
+    if (!r) {
+      r = { id: e.id, type: e.type, missing: [], state: 'both' };
+      rows.set(e.id, r);
+    }
     r.name ??= e.name;
     return r;
   };
-  for (const e of source?.watched ?? []) (row(e).from ??= []).push(e);
-  for (const e of target?.watched ?? []) (row(e).to ??= []).push(e);
+  for (const e of source?.watched ?? []) {
+    const r = row(e);
+    r.from ??= [];
+    r.from.push(e);
+  }
+  for (const e of target?.watched ?? []) {
+    const r = row(e);
+    r.to ??= [];
+    r.to.push(e);
+  }
   for (const e of plan?.changes.watched ?? []) row(e).missing.push(e);
   for (const r of rows.values()) r.state = state(r.missing.length > 0, r.from, r.to);
   return markBlocked([...rows.values()], plan, 'watched').sort(byStateThenName);
@@ -102,13 +117,22 @@ export function progressRows(source: Snapshot | undefined, target: Snapshot | un
   };
   const from = latest(source?.progress ?? []);
   const to = latest(target?.progress ?? []);
-  const copy = new Set(plan?.changes.progress.map((e) => e.id));
+  const copy = new Set(plan?.changes.progress.map(e => e.id));
   const rows = [...new Set([...from.keys(), ...to.keys()])].map((id): ProgressRow => {
-      const f = from.get(id);
-      const t = to.get(id);
-      const e = (f ?? t)!;
-      return { id, type: e.type, name: f?.name ?? t?.name, poster: f?.poster ?? t?.poster, from: f, to: t, state: state(copy.has(id), f, t), why: plan?.progressSkipped.get(id) };
-    });
+    const f = from.get(id);
+    const t = to.get(id);
+    const e = (f ?? t)!;
+    return {
+      id,
+      type: e.type,
+      name: f?.name ?? t?.name,
+      poster: f?.poster ?? t?.poster,
+      from: f,
+      to: t,
+      state: state(copy.has(id), f, t),
+      why: plan?.progressSkipped.get(id),
+    };
+  });
   return markBlocked(rows, plan, 'progress').sort(byStateThenName);
 }
 
@@ -141,8 +165,10 @@ export function selectedChanges(plan: Plan, excluded: ReadonlySet<string>): Chan
  * lacks, in From's order. Where To can't switch add-ons off, From's switched-off ones are left out.
  */
 export function initialAddonDraft(plan: Plan | undefined, target: Snapshot, canDisable: boolean): AddonEntry[] {
-  const added = (plan?.changes.addons ?? []).filter((a) => canDisable || a.enabled !== false).map((a) => ({ ...a, enabled: canDisable ? a.enabled !== false : true, protected: false }));
-  return [...target.addons.map((a) => ({ ...a })), ...added];
+  const added = (plan?.changes.addons ?? [])
+    .filter(a => canDisable || a.enabled !== false)
+    .map(a => ({ ...a, enabled: canDisable ? a.enabled !== false : true, protected: false }));
+  return [...target.addons.map(a => ({ ...a })), ...added];
 }
 
 export interface AddonDiff {
@@ -154,15 +180,16 @@ export interface AddonDiff {
 }
 
 export function addonDiff(current: AddonEntry[], draft: AddonEntry[]): AddonDiff {
-  const cur = new Map(current.map((a) => [addonKey(a.manifestUrl), a]));
-  const next = new Map(draft.map((a) => [addonKey(a.manifestUrl), a]));
-  const added = draft.filter((a) => !cur.has(addonKey(a.manifestUrl)));
-  const removed = current.filter((a) => !next.has(addonKey(a.manifestUrl)));
-  const switched = draft.filter((a) => {
+  const cur = new Map(current.map(a => [addonKey(a.manifestUrl), a]));
+  const next = new Map(draft.map(a => [addonKey(a.manifestUrl), a]));
+  const added = draft.filter(a => !cur.has(addonKey(a.manifestUrl)));
+  const removed = current.filter(a => !next.has(addonKey(a.manifestUrl)));
+  const switched = draft.filter(a => {
     const c = cur.get(addonKey(a.manifestUrl));
     return c && (c.enabled !== false) !== (a.enabled !== false);
   });
-  const common = (list: AddonEntry[], other: Map<string, AddonEntry>) => list.map((a) => addonKey(a.manifestUrl)).filter((k) => other.has(k));
+  const common = (list: AddonEntry[], other: Map<string, AddonEntry>) =>
+    list.map(a => addonKey(a.manifestUrl)).filter(k => other.has(k));
   const reordered = common(current, next).join('\n') !== common(draft, cur).join('\n');
   return { added, removed, switched, reordered };
 }
@@ -175,13 +202,13 @@ export const addonDiffSize = (d: AddonDiff) => d.added.length + d.removed.length
  */
 export function withinConfirmed(fresh: ChangeSet, confirmed: ChangeSet): ChangeSet {
   const keys = (list: { id: string; season?: number; episode?: number }[]) => new Set(list.map(videoKey));
-  const lib = new Set(confirmed.library.map((e) => e.id));
+  const lib = new Set(confirmed.library.map(e => e.id));
   const watched = keys(confirmed.watched);
   const progress = keys(confirmed.progress);
   return {
-    library: fresh.library.filter((e) => lib.has(e.id)),
-    watched: fresh.watched.filter((e) => watched.has(videoKey(e))),
-    progress: fresh.progress.filter((e) => progress.has(videoKey(e))),
+    library: fresh.library.filter(e => lib.has(e.id)),
+    watched: fresh.watched.filter(e => watched.has(videoKey(e))),
+    progress: fresh.progress.filter(e => progress.has(videoKey(e))),
     addons: [],
   };
 }

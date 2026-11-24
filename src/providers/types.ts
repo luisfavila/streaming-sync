@@ -1,4 +1,13 @@
-import { type AddonEntry, type ChangeSet, type LibraryEntry, type ProgressEntry, type Scope, type Snapshot, type WatchedEntry, videoKey } from '../model.ts';
+import {
+  type AddonEntry,
+  type ChangeSet,
+  type LibraryEntry,
+  type ProgressEntry,
+  type Scope,
+  type Snapshot,
+  videoKey,
+  type WatchedEntry,
+} from '../model.ts';
 
 export type AppKind = 'stremio' | 'nuvio' | 'trakt';
 

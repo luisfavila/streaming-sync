@@ -1,19 +1,18 @@
 import { getMeta } from '../../meta/cinemeta.ts';
 import {
   type AddonEntry,
+  addonKey,
   type ChangeSet,
+  emptySnapshot,
   type LibraryEntry,
   type MediaType,
+  normalizeManifestUrl,
   type ProgressEntry,
   type Scope,
   type Snapshot,
   type WatchedEntry,
-  addonKey,
-  emptySnapshot,
-  isMediaType,
-  normalizeManifestUrl,
 } from '../../model.ts';
-import { type ApplyReport, type Logger, type Provider, chunk, emptyReport, mapLimit, skippedTitle } from '../types.ts';
+import { type ApplyReport, chunk, emptyReport, type Logger, mapLimit, type Provider, skippedTitle } from '../types.ts';
 import type { NuvioClient } from './api.ts';
 
 // Row shapes, as in Nuvio's app (LibrarySyncItem, WatchedSyncItem, WatchProgressSyncEntry, AddonPushItem).
@@ -118,21 +117,37 @@ export class NuvioProvider implements Provider {
     if (scopes.includes('library')) {
       const rows: LibraryRow[] = [];
       for (let offset = 0; ; offset += LIBRARY_PAGE) {
-        const page = await this.client.rpc<LibraryRow[]>('sync_pull_library', { p_profile_id: p, p_limit: LIBRARY_PAGE, p_offset: offset });
+        const page = await this.client.rpc<LibraryRow[]>('sync_pull_library', {
+          p_profile_id: p,
+          p_limit: LIBRARY_PAGE,
+          p_offset: offset,
+        });
         rows.push(...page);
         if (page.length < LIBRARY_PAGE) break;
       }
       snap.library = rows.flatMap((r): LibraryEntry[] => {
         const type = normType(r.content_type);
         if (!type || !syncable(r.content_id)) return [];
-        return [{ id: r.content_id, type, name: r.name, poster: r.poster ?? undefined, addedAt: r.added_at ? toIso(r.added_at) : undefined }];
+        return [
+          {
+            id: r.content_id,
+            type,
+            name: r.name,
+            poster: r.poster ?? undefined,
+            addedAt: r.added_at ? toIso(r.added_at) : undefined,
+          },
+        ];
       });
     }
 
     if (scopes.includes('watched')) {
       const rows: WatchedRow[] = [];
       for (let page = 1; ; page++) {
-        const batch = await this.client.rpc<WatchedRow[]>('sync_pull_watched_items', { p_profile_id: p, p_page: page, p_page_size: WATCHED_PAGE });
+        const batch = await this.client.rpc<WatchedRow[]>('sync_pull_watched_items', {
+          p_profile_id: p,
+          p_page: page,
+          p_page_size: WATCHED_PAGE,
+        });
         rows.push(...batch);
         if (batch.length < WATCHED_PAGE) break;
       }
@@ -153,13 +168,15 @@ export class NuvioProvider implements Provider {
         if (!type || !syncable(r.content_id)) return [];
         const ep = r.season !== null && r.episode !== null ? { season: r.season, episode: r.episode } : {};
         this.progressKeys.set(progressIdentity(r.content_id, r.season, r.episode), r.progress_key);
-        return [{ id: r.content_id, type, ...ep, positionMs: r.position, durationMs: r.duration, updatedAt: toIso(r.last_watched) }];
+        return [
+          { id: r.content_id, type, ...ep, positionMs: r.position, durationMs: r.duration, updatedAt: toIso(r.last_watched) },
+        ];
       });
     }
 
     if (scopes.includes('addons')) {
       const seen = new Set<string>();
-      snap.addons = (await this.addonRows(this.addonsProfileId)).flatMap((r) => {
+      snap.addons = (await this.addonRows(this.addonsProfileId)).flatMap(r => {
         const k = addonKey(r.url);
         if (seen.has(k)) return [];
         seen.add(k);
@@ -176,7 +193,8 @@ export class NuvioProvider implements Provider {
 
     // Names and artwork: Nuvio shows what's stored on the row, so fill gaps from Cinemeta.
     const names = new Map<string, string>();
-    for (const e of [...changes.library, ...changes.progress, ...changes.watched]) if (e.name && !names.has(e.id)) names.set(e.id, e.name);
+    for (const e of [...changes.library, ...changes.progress, ...changes.watched])
+      if (e.name && !names.has(e.id)) names.set(e.id, e.name);
     const metaFor = async (type: MediaType, id: string) => getMeta(type, id).catch(() => undefined);
 
     if (changes.library.length) {
@@ -194,17 +212,18 @@ export class NuvioProvider implements Provider {
           added_at: toMs(e.addedAt),
         };
       });
-      for (const part of chunk(rows, 500)) await this.client.rpc('sync_push_library_items', { p_profile_id: p, p_items: part, ...origin });
+      for (const part of chunk(rows, 500))
+        await this.client.rpc('sync_push_library_items', { p_profile_id: p, p_items: part, ...origin });
       report.written.library = rows.length;
     }
 
     if (changes.watched.length) {
-      const ids = [...new Map(changes.watched.map((w) => [w.id, w.type])).entries()].filter(([id]) => !names.has(id));
+      const ids = [...new Map(changes.watched.map(w => [w.id, w.type])).entries()].filter(([id]) => !names.has(id));
       await mapLimit(ids, 8, async ([id, type]) => {
         const meta = await metaFor(type, id);
         if (meta?.name) names.set(id, meta.name);
       });
-      const rows: WatchedRow[] = changes.watched.map((w) => ({
+      const rows: WatchedRow[] = changes.watched.map(w => ({
         content_id: w.id,
         content_type: w.type,
         title: names.get(w.id) ?? '',
@@ -212,7 +231,8 @@ export class NuvioProvider implements Provider {
         episode: w.episode ?? null,
         watched_at: toMs(w.watchedAt),
       }));
-      for (const part of chunk(rows, 300)) await this.client.rpc('sync_push_watched_items', { p_profile_id: p, p_items: part, ...origin });
+      for (const part of chunk(rows, 300))
+        await this.client.rpc('sync_push_watched_items', { p_profile_id: p, p_items: part, ...origin });
       report.written.watched = rows.length;
     }
 
@@ -235,21 +255,27 @@ export class NuvioProvider implements Provider {
           position: Math.round(e.positionMs),
           duration: Math.round(e.durationMs),
           last_watched: toMs(e.updatedAt),
-          progress_key: this.progressKeys.get(identity) ?? (season !== null && episode !== null ? `${e.id}_s${season}e${episode}` : e.id),
+          progress_key:
+            this.progressKeys.get(identity) ?? (season !== null && episode !== null ? `${e.id}_s${season}e${episode}` : e.id),
         });
       }
-      for (const part of chunk(rows, 100)) await this.client.rpc('sync_push_watch_progress', { p_profile_id: p, p_entries: part, ...origin });
+      for (const part of chunk(rows, 100))
+        await this.client.rpc('sync_push_watch_progress', { p_profile_id: p, p_entries: part, ...origin });
       report.written.progress = rows.length;
     }
 
     if (changes.addons.length) {
       if (this.addonsProfileId !== p) {
         for (const a of changes.addons)
-          report.skipped.push({ scope: 'addons', key: a.name ?? a.manifestUrl, reason: "this Nuvio profile uses the main profile's add-ons; sync add-ons to profile 1 instead" });
+          report.skipped.push({
+            scope: 'addons',
+            key: a.name ?? a.manifestUrl,
+            reason: "this Nuvio profile uses the main profile's add-ons; sync add-ons to profile 1 instead",
+          });
       } else {
         // Nuvio replaces the whole list on every push, so send the current list plus the new ones.
-        const list = (await this.addonRows(p)).map((r) => ({ url: r.url, name: r.name ?? '', enabled: r.enabled ?? true }));
-        const have = new Set(list.map((a) => addonKey(a.url)));
+        const list = (await this.addonRows(p)).map(r => ({ url: r.url, name: r.name ?? '', enabled: r.enabled ?? true }));
+        const have = new Set(list.map(a => addonKey(a.url)));
         let added = 0;
         for (const a of changes.addons) {
           if (have.has(addonKey(a.manifestUrl))) continue;
@@ -258,7 +284,11 @@ export class NuvioProvider implements Provider {
           added++;
         }
         if (added) {
-          await this.client.rpc('sync_push_addons', { p_profile_id: p, p_addons: list.map((a, i) => ({ ...a, sort_order: i })), ...origin });
+          await this.client.rpc('sync_push_addons', {
+            p_profile_id: p,
+            p_addons: list.map((a, i) => ({ ...a, sort_order: i })),
+            ...origin,
+          });
           report.written.addons = added;
         }
       }
@@ -272,7 +302,9 @@ export class NuvioProvider implements Provider {
   readonly canDisableAddons = true;
 
   get addonsLocked(): string | undefined {
-    return this.addonsProfileId !== this.profileId ? "This profile uses the main profile's add-ons. Edit them on the main profile." : undefined;
+    return this.addonsProfileId !== this.profileId
+      ? "This profile uses the main profile's add-ons. Edit them on the main profile."
+      : undefined;
   }
 
   async saveAddons(list: AddonEntry[], log: Logger): Promise<ApplyReport> {
@@ -280,27 +312,35 @@ export class NuvioProvider implements Provider {
     if (this.addonsLocked) throw new Error(this.addonsLocked);
     const p = this.profileId;
     // Keep existing rows' URLs exactly as stored; only new add-ons get the normalised URL.
-    const current = new Map((await this.addonRows(p)).map((r) => [addonKey(r.url), r]));
+    const current = new Map((await this.addonRows(p)).map(r => [addonKey(r.url), r]));
     const seen = new Set<string>();
-    const rows = list.flatMap((a) => {
+    const rows = list.flatMap(a => {
       const k = addonKey(a.manifestUrl);
       if (seen.has(k)) return [];
       seen.add(k);
       const have = current.get(k);
       if (!have) report.written.addons++;
-      return [{ url: have?.url ?? normalizeManifestUrl(a.manifestUrl), name: a.name ?? have?.name ?? '', enabled: a.enabled ?? true }];
+      return [
+        { url: have?.url ?? normalizeManifestUrl(a.manifestUrl), name: a.name ?? have?.name ?? '', enabled: a.enabled ?? true },
+      ];
     });
-    await this.client.rpc('sync_push_addons', { p_profile_id: p, p_addons: rows.map((a, i) => ({ ...a, sort_order: i })), p_origin_client_id: this.clientId });
+    await this.client.rpc('sync_push_addons', {
+      p_profile_id: p,
+      p_addons: rows.map((a, i) => ({ ...a, sort_order: i })),
+      p_origin_client_id: this.clientId,
+    });
     log.info(`Nuvio: saved ${rows.length} add-on(s) to profile ${p}`);
     return report;
   }
 
   private addonRows(profileId: number): Promise<AddonRow[]> {
-    return this.client.select<AddonRow[]>('addons', `select=url,name,enabled,sort_order&profile_id=eq.${profileId}&order=sort_order.asc`);
+    return this.client.select<AddonRow[]>(
+      'addons',
+      `select=url,name,enabled,sort_order&profile_id=eq.${profileId}&order=sort_order.asc`,
+    );
   }
 }
 
 function progressIdentity(id: string, season: number | null | undefined, episode: number | null | undefined): string {
   return `${id}|${season ?? -1}|${episode ?? -1}`;
 }
-

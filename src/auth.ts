@@ -1,14 +1,13 @@
 // Signing in to each app and opening a signed-in account as a Provider. Runs in the browser:
 // requests go straight from the page to Stremio, Nuvio and Trakt.
 
-import type { Provider } from './providers/types.ts';
-import * as stremio from './providers/stremio/api.ts';
-import { StremioProvider } from './providers/stremio/provider.ts';
 import * as nuvio from './providers/nuvio/api.ts';
 import { type NuvioProfile, NuvioProvider } from './providers/nuvio/provider.ts';
+import * as stremio from './providers/stremio/api.ts';
+import { StremioProvider } from './providers/stremio/provider.ts';
 import * as trakt from './providers/trakt/api.ts';
 import { TraktProvider } from './providers/trakt/provider.ts';
-import type { AppKind } from './providers/types.ts';
+import type { AppKind, Provider } from './providers/types.ts';
 
 export type { AppKind };
 export const APP_NAME: Record<AppKind, string> = { stremio: 'Stremio', nuvio: 'Nuvio', trakt: 'Trakt' };
@@ -63,7 +62,8 @@ const sleep = (ms: number, signal?: AbortSignal) =>
     signal?.addEventListener('abort', onAbort, { once: true });
   });
 
-const randomHex = (bytes: number) => Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('');
+const randomHex = (bytes: number) =>
+  Array.from(crypto.getRandomValues(new Uint8Array(bytes)), b => b.toString(16).padStart(2, '0')).join('');
 
 // ---------------- Stremio ----------------
 
@@ -115,10 +115,12 @@ async function nuvioAccount(s: nuvio.Session): Promise<NuvioAccount> {
     clientId: `streaming-sync-${randomHex(16)}`,
   };
   const user = s.user ?? (await nuvio.getUser(s.access_token));
-  const client = new nuvio.NuvioClient(auth, (next) => Object.assign(auth, next));
+  const client = new nuvio.NuvioClient(auth, next => Object.assign(auth, next));
   const rows = await client.rpc<NuvioProfile[]>('sync_pull_profiles').catch(() => [] as NuvioProfile[]);
   const profiles = rows.length
-    ? rows.map((p) => ({ index: p.profile_index, name: p.name, usesPrimaryAddons: !!p.uses_primary_addons, pin: !!p.pin_enabled })).sort((a, b) => a.index - b.index)
+    ? rows
+        .map(p => ({ index: p.profile_index, name: p.name, usesPrimaryAddons: !!p.uses_primary_addons, pin: !!p.pin_enabled }))
+        .sort((a, b) => a.index - b.index)
     : [{ index: 1, name: 'Main', usesPrimaryAddons: false, pin: false }];
   return { id: `nuvio:${user.id}`, app: 'nuvio', who: user.email ?? user.id, auth, profiles };
 }
@@ -131,7 +133,10 @@ export async function nuvioPassword(email: string, password: string): Promise<Nu
 export async function nuvioToken(raw: string): Promise<NuvioAccount> {
   let refreshToken = raw.trim();
   try {
-    const parsed = JSON.parse(refreshToken) as string | { refresh_token?: string; currentSession?: { refresh_token?: string } } | null;
+    const parsed = JSON.parse(refreshToken) as
+      | string
+      | { refresh_token?: string; currentSession?: { refresh_token?: string } }
+      | null;
     // A token pasted with its quotes parses as a plain string.
     refreshToken = typeof parsed === 'string' ? parsed : (parsed?.refresh_token ?? parsed?.currentSession?.refresh_token ?? '');
   } catch {
@@ -199,7 +204,13 @@ interface TraktCallback {
  * PKCE sign-in in a separate window, so this page (and accounts it holds only in memory) stays as
  * it is. Call it straight from a click, or the browser may block the window. `open` is for tests.
  */
-export async function traktPkce(app: trakt.TraktApp, redirectUri: string, signal: AbortSignal, open: (url: string) => { location: { href: string } } | null = (u) => window.open(u, 'trakt-signin', 'popup,width=520,height=760')): Promise<TraktAccount> {
+export async function traktPkce(
+  app: trakt.TraktApp,
+  redirectUri: string,
+  signal: AbortSignal,
+  open: (url: string) => { location: { href: string } } | null = u =>
+    window.open(u, 'trakt-signin', 'popup,width=520,height=760'),
+): Promise<TraktAccount> {
   // Open the window first, while the click still counts; it's pointed at Trakt once the challenge is ready.
   const win = open('about:blank');
   if (!win) throw new Error('The browser blocked the Trakt window. Allow pop-ups for this page, or sign in with a code instead.');
@@ -216,7 +227,12 @@ export async function traktPkce(app: trakt.TraktApp, redirectUri: string, signal
     });
     win.location.href = trakt.authorizeUrl(app, redirectUri, challenge, state);
     const r = await reply;
-    if (!r.code) throw new Error(r.error === 'access_denied' ? 'The sign-in was declined on Trakt.' : `Trakt sign-in failed${r.error ? `: ${r.error}` : ''}.`);
+    if (!r.code)
+      throw new Error(
+        r.error === 'access_denied'
+          ? 'The sign-in was declined on Trakt.'
+          : `Trakt sign-in failed${r.error ? `: ${r.error}` : ''}.`,
+      );
     return await traktAccount(app, await trakt.exchangeCode(app, r.code, verifier, redirectUri));
   } finally {
     channel.close();
@@ -271,7 +287,7 @@ const nuvioClients = new Map<string, nuvio.NuvioClient>();
 const traktClients = new Map<string, trakt.TraktClient>();
 
 export function profileName(account: Account, profileIndex: number | undefined): string | undefined {
-  return account.app === 'nuvio' ? account.profiles.find((p) => p.index === (profileIndex ?? 1))?.name : undefined;
+  return account.app === 'nuvio' ? account.profiles.find(p => p.index === (profileIndex ?? 1))?.name : undefined;
 }
 
 export function sideLabel(account: Account, profileIndex?: number): string {
@@ -290,7 +306,7 @@ export function openProvider(account: Account, profileIndex: number | undefined,
   if (account.app === 'trakt') {
     let tc = traktClients.get(account.id);
     if (!tc) {
-      tc = new trakt.TraktClient(account.auth, account.auth, (next) => {
+      tc = new trakt.TraktClient(account.auth, account.auth, next => {
         Object.assign(account.auth, next);
         onAuthChange(account);
       });
@@ -300,14 +316,14 @@ export function openProvider(account: Account, profileIndex: number | undefined,
   }
   let client = nuvioClients.get(account.id);
   if (!client) {
-    client = new nuvio.NuvioClient(account.auth, (next) => {
+    client = new nuvio.NuvioClient(account.auth, next => {
       Object.assign(account.auth, next);
       onAuthChange(account);
     });
     nuvioClients.set(account.id, client);
   }
   const index = profileIndex ?? 1;
-  const p = account.profiles.find((x) => x.index === index);
+  const p = account.profiles.find(x => x.index === index);
   return new NuvioProvider({
     client,
     profileId: index,
@@ -336,6 +352,7 @@ export async function signOut(account: Account): Promise<void> {
     return;
   }
   let access = account.auth.accessToken;
-  if (account.auth.expiresAt - 60 < Date.now() / 1000) access = (await nuvio.refreshSession(account.auth.refreshToken).catch(() => undefined))?.access_token ?? access;
+  if (account.auth.expiresAt - 60 < Date.now() / 1000)
+    access = (await nuvio.refreshSession(account.auth.refreshToken).catch(() => undefined))?.access_token ?? access;
   await nuvio.signOutSession(access).catch(() => {});
 }

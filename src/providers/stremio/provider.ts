@@ -1,33 +1,37 @@
-import { airedEpisodes, getMeta, findEpisode, type Meta } from '../../meta/cinemeta.ts';
+import { airedEpisodes, findEpisode, getMeta, type Meta } from '../../meta/cinemeta.ts';
 import {
   type AddonEntry,
+  addonKey,
   type ChangeSet,
+  emptySnapshot,
+  isMediaType,
   type LibraryEntry,
   type MediaType,
+  normalizeManifestUrl,
   type ProgressEntry,
   type Scope,
   type Snapshot,
   type WatchedEntry,
-  addonKey,
-  emptySnapshot,
-  isMediaType,
-  normalizeManifestUrl,
 } from '../../model.ts';
-import { type ApplyReport, type Logger, type Provider, chunk, emptyReport, mapLimit, skippedTitle } from '../types.ts';
+import { type ApplyReport, chunk, emptyReport, type Logger, mapLimit, type Provider, skippedTitle } from '../types.ts';
 import * as api from './api.ts';
-import { WatchedBitField, orderVideoIds } from './bitfield.ts';
+import { orderVideoIds, WatchedBitField } from './bitfield.ts';
 
 const iso = (d: string | null | undefined) => (d && !Number.isNaN(Date.parse(d)) ? new Date(d).toISOString() : undefined);
 const later = (a: string | null | undefined, b: string | null | undefined) => {
   const x = iso(a);
   const y = iso(b);
+  // biome-ignore lint/complexity/useMathMinMax: these are ISO 8601 strings (UTC), which compare correctly as text; Math.max needs numbers
   return !x ? y : !y ? x : x > y ? x : y;
 };
 
 /** "tt123:1:2" → {season:1, episode:2}. Works for prefixed ids too ("kitsu:1:5" has no season → undefined). */
 function parseVideoId(seriesId: string, videoId: string | null | undefined): { season: number; episode: number } | undefined {
-  if (!videoId || !videoId.startsWith(seriesId + ':')) return undefined;
-  const [s, e] = videoId.slice(seriesId.length + 1).split(':').map(Number);
+  if (!videoId?.startsWith(`${seriesId}:`)) return undefined;
+  const [s, e] = videoId
+    .slice(seriesId.length + 1)
+    .split(':')
+    .map(Number);
   return Number.isInteger(s) && Number.isInteger(e) ? { season: s!, episode: e! } : undefined;
 }
 
@@ -45,20 +49,20 @@ export class StremioProvider implements Provider {
   private async loadItems(): Promise<Map<string, api.StremioLibraryItem>> {
     if (!this.items) {
       const list = await api.libraryGet(this.authKey);
-      this.items = new Map(list.map((i) => [i._id, i]));
+      this.items = new Map(list.map(i => [i._id, i]));
     }
     return this.items;
   }
 
   async read(scopes: readonly Scope[], log: Logger): Promise<Snapshot> {
     const snap = emptySnapshot();
-    if (scopes.some((s) => s !== 'addons')) {
+    if (scopes.some(s => s !== 'addons')) {
       // Always fetch afresh: apply() writes back these copies, so they must be current.
       this.items = undefined;
-      const items = [...(await this.loadItems()).values()].filter((i) => isMediaType(i.type));
-      if (scopes.includes('library')) snap.library = items.filter((i) => !i.removed).map(toLibraryEntry);
+      const items = [...(await this.loadItems()).values()].filter(i => isMediaType(i.type));
+      if (scopes.includes('library')) snap.library = items.filter(i => !i.removed).map(toLibraryEntry);
       if (scopes.includes('watched')) snap.watched = await this.readWatched(items, log);
-      if (scopes.includes('progress')) snap.progress = items.flatMap((i) => toProgress(i));
+      if (scopes.includes('progress')) snap.progress = items.flatMap(i => toProgress(i));
     }
     if (scopes.includes('addons')) {
       snap.addons = (await api.addonsGet(this.authKey)).map(toAddonEntry);
@@ -73,7 +77,7 @@ export class StremioProvider implements Provider {
         out.push({ id: i._id, type: 'movie', watchedAt: iso(i.state.lastWatched) ?? iso(i._mtime)!, name: i.name || undefined });
       }
     }
-    const series = items.filter((i) => i.type === 'series' && i.state.watched);
+    const series = items.filter(i => i.type === 'series' && i.state.watched);
     if (series.length) log.info(`Stremio: reading watched episodes for ${series.length} series (episode lists from Cinemeta)…`);
     const perSeries = await mapLimit(series, 8, async (i): Promise<WatchedEntry[]> => {
       let meta: Meta | undefined;
@@ -92,21 +96,24 @@ export class StremioProvider implements Provider {
         return [];
       }
       const lastWatched = iso(i.state.lastWatched) ?? iso(i._mtime)!;
-      const byId = new Map(meta.videos.map((v) => [v.id, v]));
+      const byId = new Map(meta.videos.map(v => [v.id, v]));
       // Every aired episode watched → also report the series itself as watched (Nuvio has a
       // separate series-level mark for this; Stremio doesn't).
       const aired = airedEpisodes(meta);
       const name = i.name || meta.name || undefined;
-      const seriesMark: WatchedEntry[] = aired.length && aired.every((v) => bf.getVideo(v.id)) ? [{ id: i._id, type: 'series', watchedAt: lastWatched, name }] : [];
-      return seriesMark.concat(bf.watchedVideoIds().flatMap((vid) => {
-        const v = byId.get(vid);
-        if (v?.season === undefined || v.episode === undefined) return [];
-        // Stremio keeps one timestamp per series. Use it for the latest episode, and the air date
-        // (when earlier) for the rest, so history stays in a sensible order.
-        const released = iso(v.released);
-        const watchedAt = vid === i.state.video_id || !released || released > lastWatched ? lastWatched : released;
-        return [{ id: i._id, type: 'series' as const, season: v.season, episode: v.episode, watchedAt, name }];
-      }));
+      const seriesMark: WatchedEntry[] =
+        aired.length && aired.every(v => bf.getVideo(v.id)) ? [{ id: i._id, type: 'series', watchedAt: lastWatched, name }] : [];
+      return seriesMark.concat(
+        bf.watchedVideoIds().flatMap(vid => {
+          const v = byId.get(vid);
+          if (v?.season === undefined || v.episode === undefined) return [];
+          // Stremio keeps one timestamp per series. Use it for the latest episode, and the air date
+          // (when earlier) for the rest, so history stays in a sensible order.
+          const released = iso(v.released);
+          const watchedAt = vid === i.state.video_id || !released || released > lastWatched ? lastWatched : released;
+          return [{ id: i._id, type: 'series' as const, season: v.season, episode: v.episode, watchedAt, name }];
+        }),
+      );
     });
     return out.concat(perSeries.flat());
   }
@@ -139,7 +146,18 @@ export class StremioProvider implements Provider {
           temp: true,
           _ctime: now,
           _mtime: now,
-          state: { lastWatched: null, timeWatched: 0, timeOffset: 0, overallTimeWatched: 0, timesWatched: 0, flaggedWatched: 0, duration: 0, video_id: null, watched: null, noNotif: false },
+          state: {
+            lastWatched: null,
+            timeWatched: 0,
+            timeOffset: 0,
+            overallTimeWatched: 0,
+            timesWatched: 0,
+            flaggedWatched: 0,
+            duration: 0,
+            video_id: null,
+            watched: null,
+            noNotif: false,
+          },
           behaviorHints: { defaultVideoId: null, featuredVideoId: null, hasScheduledVideos: false },
         };
       }
@@ -155,7 +173,7 @@ export class StremioProvider implements Provider {
       report.written.library++;
     }
 
-    for (const e of changes.watched.filter((w) => w.type === 'movie')) {
+    for (const e of changes.watched.filter(w => w.type === 'movie')) {
       const item = await getOrCreate(e.id, 'movie', e);
       item.state.timesWatched = Math.max(1, item.state.timesWatched);
       item.state.flaggedWatched = 1;
@@ -163,7 +181,10 @@ export class StremioProvider implements Provider {
       report.written.watched++;
     }
 
-    const episodesBySeries = Map.groupBy(changes.watched.filter((w) => w.type === 'series'), (w) => w.id);
+    const episodesBySeries = Map.groupBy(
+      changes.watched.filter(w => w.type === 'series'),
+      w => w.id,
+    );
     for (const [id, eps] of episodesBySeries) {
       const meta = await getMeta('series', id).catch(() => undefined);
       if (!meta?.videos.length) {
@@ -175,7 +196,10 @@ export class StremioProvider implements Provider {
       const existing = touched.get(id) ?? items.get(id);
       const bf = WatchedBitField.tryParse(existing?.state.watched, orderVideoIds(meta.videos));
       if (!bf) {
-        for (const e of eps) report.skipped.push(skippedTitle('watched', e, "Stremio's watched episodes for this series don't match Cinemeta's episode list"));
+        for (const e of eps)
+          report.skipped.push(
+            skippedTitle('watched', e, "Stremio's watched episodes for this series don't match Cinemeta's episode list"),
+          );
         continue;
       }
       const item = await getOrCreate(id, 'series', meta);
@@ -216,7 +240,7 @@ export class StremioProvider implements Provider {
     }
 
     if (touched.size) {
-      const list = [...touched.values()].map((i) => ({ ...i, _mtime: now }));
+      const list = [...touched.values()].map(i => ({ ...i, _mtime: now }));
       for (const part of chunk(list, 50)) await api.libraryPut(this.authKey, part);
       for (const i of list) items.set(i._id, i);
       log.info(`Stremio: wrote ${list.length} library item(s)`);
@@ -224,10 +248,12 @@ export class StremioProvider implements Provider {
 
     if (changes.addons.length) {
       const current = await api.addonsGet(this.authKey);
-      const have = new Set(current.map((a) => addonKey(a.transportUrl)));
-      const added = (await mapLimit(changes.addons, 4, async (a) => (have.has(addonKey(a.manifestUrl)) ? undefined : this.descriptor(a.manifestUrl, report)))).filter(
-        (d): d is api.StremioAddonDescriptor => !!d,
-      );
+      const have = new Set(current.map(a => addonKey(a.transportUrl)));
+      const added = (
+        await mapLimit(changes.addons, 4, async a =>
+          have.has(addonKey(a.manifestUrl)) ? undefined : this.descriptor(a.manifestUrl, report),
+        )
+      ).filter((d): d is api.StremioAddonDescriptor => !!d);
       if (added.length) {
         await api.addonsSet(this.authKey, [...current, ...added]);
         report.written.addons = added.length;
@@ -241,11 +267,11 @@ export class StremioProvider implements Provider {
   async saveAddons(list: AddonEntry[], log: Logger): Promise<ApplyReport> {
     const report = emptyReport();
     const current = await api.addonsGet(this.authKey);
-    const byKey = new Map(current.map((d) => [addonKey(d.transportUrl), d]));
+    const byKey = new Map(current.map(d => [addonKey(d.transportUrl), d]));
     // Stremio can't switch add-ons off, so a switched-off add-on isn't installed here.
-    const wanted = list.filter((a) => a.enabled !== false);
+    const wanted = list.filter(a => a.enabled !== false);
     const out = (
-      await mapLimit(wanted, 4, async (a) => {
+      await mapLimit(wanted, 4, async a => {
         const have = byKey.get(addonKey(a.manifestUrl));
         if (have) return have;
         const d = await this.descriptor(a.manifestUrl, report);
@@ -254,7 +280,7 @@ export class StremioProvider implements Provider {
       })
     ).filter((d): d is api.StremioAddonDescriptor => !!d);
     // Protected add-ons can't be removed: put back any the list left out, where they were.
-    const keep = new Set(out.map((d) => addonKey(d.transportUrl)));
+    const keep = new Set(out.map(d => addonKey(d.transportUrl)));
     current.forEach((d, i) => {
       if (d.flags?.protected && !keep.has(addonKey(d.transportUrl))) out.splice(Math.min(i, out.length), 0, d);
     });
@@ -281,7 +307,13 @@ export class StremioProvider implements Provider {
 
 function toAddonEntry(d: api.StremioAddonDescriptor): AddonEntry {
   const logo = typeof d.manifest?.logo === 'string' ? d.manifest.logo : undefined;
-  return { manifestUrl: normalizeManifestUrl(d.transportUrl), name: d.manifest?.name, logo, enabled: true, protected: !!d.flags?.protected };
+  return {
+    manifestUrl: normalizeManifestUrl(d.transportUrl),
+    name: d.manifest?.name,
+    logo,
+    enabled: true,
+    protected: !!d.flags?.protected,
+  };
 }
 
 function toLibraryEntry(i: api.StremioLibraryItem): LibraryEntry {

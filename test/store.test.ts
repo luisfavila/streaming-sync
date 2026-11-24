@@ -1,14 +1,18 @@
 // The "Remember accounts on this device" setting.
 
-import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { beforeEach, test } from 'node:test';
 import type { Account } from '../src/auth.ts';
 import * as store from '../src/web/store.ts';
 
 const data = new Map<string, string>();
 Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
-  value: { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v), removeItem: (k: string) => void data.delete(k) },
+  value: {
+    getItem: (k: string) => data.get(k) ?? null,
+    setItem: (k: string, v: string) => void data.set(k, v),
+    removeItem: (k: string) => void data.delete(k),
+  },
 });
 beforeEach(() => data.clear());
 
@@ -23,6 +27,6 @@ test('remembers accounts by default', () => {
 test('turning Remember off forgets the accounts and stays off on the next visit', () => {
   store.save({ remember: true, accounts: [account] });
   store.save({ remember: false, accounts: [account] });
-  assert.ok(![...data.values()].some((v) => v.includes('secret-key')), 'no tokens left in storage');
+  assert.ok(![...data.values()].some(v => v.includes('secret-key')), 'no tokens left in storage');
   assert.deepEqual(store.load(), { remember: false, accounts: [] });
 });

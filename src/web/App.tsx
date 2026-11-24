@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { type Account, APP_NAME, type Side, forgetClient, openProvider, profileName, sideLabel, signOut } from '../auth.ts';
+import { type Account, APP_NAME, forgetClient, openProvider, profileName, type Side, sideLabel, signOut } from '../auth.ts';
 import { getMeta } from '../meta/cinemeta.ts';
 import { type AddonEntry, type ChangeSet, SCOPES, type Snapshot } from '../model.ts';
-import { type ApplyReport, type Provider, type Skipped, mapLimit } from '../providers/types.ts';
+import { type ApplyReport, mapLimit, type Provider, type Skipped } from '../providers/types.ts';
 import { type AddonDiff, addonDiff, addonDiffSize, initialAddonDraft, knownNames, selectedChanges } from '../sync/compare.ts';
 import { countChanges, plan as makePlan } from '../sync/plan.ts';
 import { NO_CHANGES, runWrite } from '../sync/run.ts';
@@ -34,7 +34,8 @@ const keyOf = (s?: Side) => (s ? `${s.accountId}#${s.profileIndex ?? 1}` : '');
 const sameSide = (a?: Side, b?: Side) => !!a && !!b && keyOf(a) === keyOf(b);
 const SCOPE_LABEL = { library: 'Library', watched: 'Watched', progress: 'Continue Watching', addons: 'Add-ons' } as const;
 /** The account, plus the profile when a Nuvio account has several. */
-const whoLabel = (a: Account, profileIndex?: number) => (a.app === 'nuvio' && a.profiles.length > 1 ? `${a.who} · ${profileName(a, profileIndex)} profile` : a.who);
+const whoLabel = (a: Account, profileIndex?: number) =>
+  a.app === 'nuvio' && a.profiles.length > 1 ? `${a.who} · ${profileName(a, profileIndex)} profile` : a.who;
 /** "The 100 S02E03" for a skipped episode, falling back to its key when the title has no known name. */
 const skippedName = (s: Skipped, names: Map<string, string>) => {
   const name = s.id && names.get(s.id);
@@ -63,7 +64,7 @@ export function App() {
   accountsRef.current = accounts;
   const generation = useRef(new Map<string, number>());
 
-  const exists = (s?: Side) => !!s && accounts.some((a) => a.id === s.accountId);
+  const exists = (s?: Side) => !!s && accounts.some(a => a.id === s.accountId);
   const fromSide = exists(from) ? from : undefined;
   const toSide = exists(to) ? to : undefined;
   const fromKey = keyOf(fromSide);
@@ -72,34 +73,37 @@ export function App() {
 
   useEffect(() => store.save({ remember, accounts, from: fromSide, to: toSide }), [remember, accounts, fromSide, toSide]);
 
-  const account = (s: Side) => accounts.find((a) => a.id === s.accountId)!;
+  const account = (s: Side) => accounts.find(a => a.id === s.accountId)!;
   const upsertAccount = (a: Account) => {
     // Signing in again to a known account: drop its old session's client and what was loaded with
     // it, so the side loads again with the new session.
     forgetClient(a.id);
-    for (const [k, gen] of generation.current) if (k.startsWith(a.id + '#')) generation.current.set(k, gen + 1); // drop loads in flight
-    setLoads((cur) => Object.fromEntries(Object.entries(cur).filter(([k]) => !k.startsWith(a.id + '#'))));
-    setAccounts((list) => list.filter((x) => x.id !== a.id).concat(a));
+    for (const [k, gen] of generation.current) if (k.startsWith(`${a.id}#`)) generation.current.set(k, gen + 1); // drop loads in flight
+    setLoads(cur => Object.fromEntries(Object.entries(cur).filter(([k]) => !k.startsWith(`${a.id}#`))));
+    setAccounts(list => list.filter(x => x.id !== a.id).concat(a));
   };
   // Nuvio rotates its tokens; keep the saved copy current.
-  const onAuthChange = (a: Account) => setAccounts((list) => list.map((x) => (x.id === a.id ? { ...a } : x)));
+  const onAuthChange = (a: Account) => setAccounts(list => list.map(x => (x.id === a.id ? { ...a } : x)));
 
   /** Reads everything from one side. Results of an older read of the same side are dropped. */
   const load = async (side: Side): Promise<Load | undefined> => {
     const key = keyOf(side);
-    const acc = accountsRef.current.find((a) => a.id === side.accountId);
+    const acc = accountsRef.current.find(a => a.id === side.accountId);
     if (!acc) return undefined;
     const gen = (generation.current.get(key) ?? 0) + 1;
     generation.current.set(key, gen);
     const set = (l: Load) => {
-      if (generation.current.get(key) === gen) setLoads((cur) => ({ ...cur, [key]: l }));
+      if (generation.current.get(key) === gen) setLoads(cur => ({ ...cur, [key]: l }));
       return l;
     };
     set({ status: 'loading' });
     const warnings: string[] = [];
     try {
       const provider = openProvider(acc, side.profileIndex, onAuthChange);
-      const snap = await provider.read(SCOPES, { info: (message) => set({ status: 'loading', message }), warn: (w) => warnings.push(w) });
+      const snap = await provider.read(SCOPES, {
+        info: message => set({ status: 'loading', message }),
+        warn: w => warnings.push(w),
+      });
       return set({ status: 'ready', snap, provider, warnings, at: Date.now() });
     } catch (e) {
       return set({ status: 'error', error: (e as Error).message });
@@ -135,7 +139,7 @@ export function App() {
     const prev = draftOrigin.current;
     draftOrigin.current = { snap: dst.snap, base };
     setDraftBase(base);
-    setDraft((cur) => (prev.snap === dst.snap && JSON.stringify(cur) !== JSON.stringify(prev.base) ? cur : base));
+    setDraft(cur => (prev.snap === dst.snap && JSON.stringify(cur) !== JSON.stringify(prev.base) ? cur : base));
   }, [plan, dst?.snap, suggestAddons]);
 
   // Names for titles the apps don't name (e.g. Nuvio's Continue Watching), from Cinemeta.
@@ -144,7 +148,9 @@ export function App() {
     const known = knownNames(...snaps);
     setNames(known);
     const missing = new Map<string, Snapshot['progress'][number]['type']>();
-    for (const s of snaps) for (const e of [...(s?.watched ?? []), ...(s?.progress ?? [])]) if (!known.has(e.id) && /^tt\d+$/.test(e.id)) missing.set(e.id, e.type);
+    for (const s of snaps)
+      for (const e of [...(s?.watched ?? []), ...(s?.progress ?? [])])
+        if (!known.has(e.id) && /^tt\d+$/.test(e.id)) missing.set(e.id, e.type);
     if (!missing.size) return;
     let live = true;
     const found = new Map(known);
@@ -182,10 +188,13 @@ export function App() {
         loadedAddons: dst.snap.addons,
         readAfter: async () => {
           const after = await load(toSide);
-          if (after?.status !== 'ready') throw new Error(`Written, but re-reading ${toLabel} failed: ${after?.status === 'error' ? after.error : 'unknown error'}`);
+          if (after?.status !== 'ready')
+            throw new Error(
+              `Written, but re-reading ${toLabel} failed: ${after?.status === 'error' ? after.error : 'unknown error'}`,
+            );
           return after.snap;
         },
-        log: { info: (m) => setWriting(m), warn: (m) => warnings.push(m) },
+        log: { info: m => setWriting(m), warn: m => warnings.push(m) },
       });
       setSuggestAddons(false);
       setResult({ ...outcome, toLabel, warnings });
@@ -198,8 +207,8 @@ export function App() {
 
   const forget = async (a: Account) => {
     await signOut(a);
-    setAccounts((list) => list.filter((x) => x.id !== a.id));
-    setLoads((cur) => Object.fromEntries(Object.entries(cur).filter(([k]) => !k.startsWith(a.id + '#'))));
+    setAccounts(list => list.filter(x => x.id !== a.id));
+    setLoads(cur => Object.fromEntries(Object.entries(cur).filter(([k]) => !k.startsWith(`${a.id}#`))));
   };
 
   /** Sets one side. Choosing what the other side has swaps them, so both never point at the same place. */
@@ -224,9 +233,23 @@ export function App() {
   };
   const reload = (side: Side | undefined) =>
     side && loads[keyOf(side)]?.status === 'ready' ? (
-      <button type="button" class="btn btn-small btn-icon" disabled={busy} onClick={() => void load(side)} aria-label="Reload" title="Reload">
+      <button
+        type="button"
+        class="btn btn-small btn-icon"
+        disabled={busy}
+        onClick={() => void load(side)}
+        aria-label="Reload"
+        title="Reload"
+      >
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path
+            d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
     ) : undefined;
@@ -242,10 +265,19 @@ export function App() {
       <header class="masthead">
         <h1>Streaming Sync</h1>
         <div class="masthead-text">
-          <p class="lede">See what two Stremio, Nuvio or Trakt accounts each have, and copy across what you pick: library, watch history, Continue Watching and add-ons, in any direction.</p>
+          <p class="lede">
+            See what two Stremio, Nuvio or Trakt accounts each have, and copy across what you pick: library, watch history,
+            Continue Watching and add-ons, in any direction.
+          </p>
           <p class="privacy">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+              <path
+                d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
             </svg>
             This page runs in your browser. Sign-ins and data go straight to Stremio, Nuvio and Trakt, never to anyone else.
           </p>
@@ -264,13 +296,27 @@ export function App() {
             status={status(fromSide)}
             actions={reload(fromSide)}
             meta={meta(fromSide)}
-            onChange={(s) => choose('from', s)}
+            onChange={s => choose('from', s)}
             onSignedIn={upsertAccount}
             onForget={forget}
           />
-          <button type="button" class="swap" onClick={swap} disabled={busy || (!fromSide && !toSide)} aria-label="Swap From and To" title="Swap direction">
+          <button
+            type="button"
+            class="swap"
+            onClick={swap}
+            disabled={busy || (!fromSide && !toSide)}
+            aria-label="Swap From and To"
+            title="Swap direction"
+          >
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path d="M5 9h13l-4-4M19 15H6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path
+                d="M5 9h13l-4-4M19 15H6l4 4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             </svg>
           </button>
           <AccountSide
@@ -283,18 +329,23 @@ export function App() {
             status={status(toSide)}
             actions={reload(toSide)}
             meta={meta(toSide)}
-            onChange={(s) => choose('to', s)}
+            onChange={s => choose('to', s)}
             onSignedIn={upsertAccount}
             onForget={forget}
           />
           <label class="check remember">
-            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.currentTarget.checked)} />
+            <input type="checkbox" checked={remember} onChange={e => setRemember(e.currentTarget.checked)} />
             Remember accounts on this device
           </label>
         </aside>
 
         <main class="content">
-          {same && <p class="error">From and To are the same{account(fromSide!).app === 'nuvio' ? ' profile' : ' account'}. Pick a different one for one side.</p>}
+          {same && (
+            <p class="error">
+              From and To are the same{account(fromSide!).app === 'nuvio' ? ' profile' : ' account'}. Pick a different one for one
+              side.
+            </p>
+          )}
 
           {!anyLoaded && !same && (
             <section class="card placeholder" aria-label="Compare">
@@ -307,7 +358,10 @@ export function App() {
               ) : (
                 <>
                   <h2>Pick two accounts</h2>
-                  <p>Sign in on the left. Their library, watch history, Continue Watching and add-ons show up here side by side, and you choose what to copy.</p>
+                  <p>
+                    Sign in on the left. Their library, watch history, Continue Watching and add-ons show up here side by side,
+                    and you choose what to copy.
+                  </p>
                 </>
               )}
             </section>
@@ -358,7 +412,10 @@ export function App() {
                   </button>
                 </div>
               )}
-              <p class="hint">Copying only adds: titles, watched marks and newer progress. To's add-ons end up exactly as listed on the Add-ons tab.</p>
+              <p class="hint">
+                Copying only adds: titles, watched marks and newer progress. To's add-ons end up exactly as listed on the Add-ons
+                tab.
+              </p>
             </section>
           )}
 
@@ -385,7 +442,8 @@ export function App() {
 
       <footer class="footer">
         <p>
-          Not affiliated with Stremio, Nuvio or Trakt. Uses Trakt's public API, and the same private APIs Stremio's and Nuvio's own apps use, which may change.{' '}
+          Not affiliated with Stremio, Nuvio or Trakt. Uses Trakt's public API, and the same private APIs Stremio's and Nuvio's
+          own apps use, which may change.{' '}
           {remember ? 'Signed-in accounts are kept in this browser only.' : 'Accounts are forgotten when you close this page.'}
         </p>
         <p class="credit">
@@ -393,7 +451,11 @@ export function App() {
           <a href="https://luisavila.com" target="_blank" rel="noopener">
             Luis Ávila
           </a>{' '}
-          with <span aria-label="love">💖</span> and Claude
+          with{' '}
+          <span role="img" aria-label="love">
+            💖
+          </span>{' '}
+          and Claude
         </p>
       </footer>
     </div>
@@ -419,12 +481,17 @@ function SideStatus(props: { load: Load; onReload: () => void; hasAddons: boolea
       </div>
     );
   const s = l.snap;
-  const movies = s.watched.filter((w) => w.type === 'movie').length;
-  const episodes = s.watched.filter((w) => w.episode !== undefined).length;
+  const movies = s.watched.filter(w => w.type === 'movie').length;
+  const episodes = s.watched.filter(w => w.episode !== undefined).length;
   return (
     <dl class={props.hasAddons ? 'stats' : 'stats stats-3'}>
       <Stat id="library" label="Library" n={s.library.length} />
-      <Stat id="watched" label="Watched" n={movies + episodes} title={`${plural(movies, 'movie')} and ${plural(episodes, 'episode')}`} />
+      <Stat
+        id="watched"
+        label="Watched"
+        n={movies + episodes}
+        title={`${plural(movies, 'movie')} and ${plural(episodes, 'episode')}`}
+      />
       <Stat id="progress" label="Progress" n={s.progress.length} title="Continue Watching" />
       {props.hasAddons && <Stat id="addons" label="Add-ons" n={s.addons.length} />}
     </dl>
@@ -440,7 +507,7 @@ function SideMeta({ load }: { load: Ready }) {
         <details class="notes notes-warn">
           <summary>{plural(load.warnings.length, 'note')}</summary>
           <ul class="items">
-            {load.warnings.map((w) => (
+            {load.warnings.map(w => (
               <li>{w}</li>
             ))}
           </ul>
@@ -463,16 +530,25 @@ function Stat(props: { id: string; label: string; n: number; title?: string }) {
 function summaryLines(c: ChangeSet, d: AddonDiff | undefined): string[] {
   const out: string[] = [];
   if (c.library.length) out.push(plural(c.library.length, 'library title'));
-  const movies = c.watched.filter((w) => w.type === 'movie').length;
-  const eps = c.watched.filter((w) => w.episode !== undefined).length;
-  const series = c.watched.filter((w) => w.type === 'series' && w.episode === undefined).length;
-  const watched = [movies && plural(movies, 'movie'), eps && plural(eps, 'episode'), series && plural(series, 'whole series', 'whole series')].filter(Boolean).join(', ');
+  const movies = c.watched.filter(w => w.type === 'movie').length;
+  const eps = c.watched.filter(w => w.episode !== undefined).length;
+  const series = c.watched.filter(w => w.type === 'series' && w.episode === undefined).length;
+  const watched = [
+    movies && plural(movies, 'movie'),
+    eps && plural(eps, 'episode'),
+    series && plural(series, 'whole series', 'whole series'),
+  ]
+    .filter(Boolean)
+    .join(', ');
   if (watched) out.push(`${watched} watched`);
   if (c.progress.length) out.push(plural(c.progress.length, 'progress update'));
   if (d) {
     if (d.added.length) out.push(`${plural(d.added.length, 'add-on')} to install`);
     if (d.removed.length) out.push(`${plural(d.removed.length, 'add-on')} to remove`);
-    if (d.switched.length) out.push(`${plural(d.switched.length, 'add-on')} switched ${d.switched.every((a) => a.enabled === false) ? 'off' : d.switched.every((a) => a.enabled !== false) ? 'on' : 'on or off'}`);
+    if (d.switched.length)
+      out.push(
+        `${plural(d.switched.length, 'add-on')} switched ${d.switched.every(a => a.enabled === false) ? 'off' : d.switched.every(a => a.enabled !== false) ? 'on' : 'on or off'}`,
+      );
     if (d.reordered) out.push('add-ons reordered');
   }
   return out;
@@ -480,14 +556,14 @@ function summaryLines(c: ChangeSet, d: AddonDiff | undefined): string[] {
 
 function ResultView({ result, names }: { result: Result; names: Map<string, string> }) {
   const { report, left, addonsLeft } = result;
-  const written = SCOPES.filter((s) => report.written[s] > 0);
+  const written = SCOPES.filter(s => report.written[s] > 0);
   const problems = left + addonsLeft;
   return (
     <section class="card result" aria-label="Result">
       <h2>{problems ? 'Done, with some items left over' : 'Done'}</h2>
       {written.length > 0 && (
         <ul class="tally">
-          {written.map((s) => (
+          {written.map(s => (
             <li>
               <span class="n">{report.written[s].toLocaleString()}</span> {SCOPE_LABEL[s]}
             </li>
@@ -505,7 +581,7 @@ function ResultView({ result, names }: { result: Result; names: Map<string, stri
       )}
       {result.warnings.length > 0 && (
         <ul class="warn result-warnings">
-          {result.warnings.map((w) => (
+          {result.warnings.map(w => (
             <li>{w}</li>
           ))}
         </ul>
@@ -514,7 +590,7 @@ function ResultView({ result, names }: { result: Result; names: Map<string, stri
         <details open>
           <summary>Not written ({report.skipped.length})</summary>
           <ul class="items">
-            {report.skipped.map((s) => (
+            {report.skipped.map(s => (
               <li>
                 <span class="item-name">{skippedName(s, names)}</span> <span class="muted">{s.reason}</span>
               </li>

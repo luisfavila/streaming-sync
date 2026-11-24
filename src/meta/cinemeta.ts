@@ -48,8 +48,8 @@ async function fetchMeta(type: MediaType, id: string): Promise<Meta | undefined>
       if (!m || typeof m.name !== 'string') return undefined;
       const videos = Array.isArray(m.videos)
         ? (m.videos as Record<string, unknown>[])
-            .filter((v) => typeof v.id === 'string')
-            .map((v) => ({
+            .filter(v => typeof v.id === 'string')
+            .map(v => ({
               id: v.id as string,
               season: typeof v.season === 'number' ? v.season : undefined,
               episode: typeof v.episode === 'number' ? v.episode : typeof v.number === 'number' ? v.number : undefined,
@@ -67,7 +67,7 @@ async function fetchMeta(type: MediaType, id: string): Promise<Meta | undefined>
       };
     } catch (e) {
       if (attempt === 2) throw new Error(`Cinemeta ${type}/${id}: ${(e as Error).message}`);
-      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
     }
   }
   return undefined;
@@ -75,11 +75,13 @@ async function fetchMeta(type: MediaType, id: string): Promise<Meta | undefined>
 
 /** Finds the episode's video in a series' list. */
 export function findEpisode(meta: Meta, season: number, episode: number): CinemetaVideo | undefined {
-  return meta.videos.find((v) => v.season === season && v.episode === episode);
+  return meta.videos.find(v => v.season === season && v.episode === episode);
 }
 
 /** Regular-season episodes that have aired (specials in season 0 and future episodes don't count). */
 export function airedEpisodes(meta: Meta): CinemetaVideo[] {
   const now = Date.now();
-  return meta.videos.filter((v) => (v.season ?? 0) > 0 && v.episode !== undefined && (!v.released || Date.parse(v.released) <= now));
+  return meta.videos.filter(
+    v => (v.season ?? 0) > 0 && v.episode !== undefined && (!v.released || Date.parse(v.released) <= now),
+  );
 }

@@ -11,16 +11,16 @@ import { airedEpisodes, getMeta } from '../../meta/cinemeta.ts';
 import {
   type AddonEntry,
   type ChangeSet,
+  emptySnapshot,
   type LibraryEntry,
   type MediaType,
   type ProgressEntry,
   type Scope,
   type Snapshot,
-  type WatchedEntry,
-  emptySnapshot,
   videoKey,
+  type WatchedEntry,
 } from '../../model.ts';
-import { type ApplyReport, type Logger, type Provider, emptyReport, mapLimit, skippedTitle } from '../types.ts';
+import { type ApplyReport, emptyReport, type Logger, mapLimit, type Provider, skippedTitle } from '../types.ts';
 import type { TraktClient } from './api.ts';
 
 interface Ids {
@@ -150,27 +150,38 @@ export class TraktProvider implements Provider {
     };
 
     if (scopes.includes('library')) {
-      const [movies, shows] = await Promise.all([this.client.getAll<WatchlistItem>('/sync/watchlist/movies'), this.client.getAll<WatchlistItem>('/sync/watchlist/shows')]);
+      const [movies, shows] = await Promise.all([
+        this.client.getAll<WatchlistItem>('/sync/watchlist/movies'),
+        this.client.getAll<WatchlistItem>('/sync/watchlist/shows'),
+      ]);
       snap.library = [...movies, ...shows].flatMap((w): LibraryEntry[] => {
         const media = w.movie ?? w.show;
         const x = id(media);
-        return x && media ? [{ id: x, type: w.type === 'movie' ? 'movie' : 'series', name: media.title, addedAt: w.listed_at }] : [];
+        return x && media
+          ? [{ id: x, type: w.type === 'movie' ? 'movie' : 'series', name: media.title, addedAt: w.listed_at }]
+          : [];
       });
     }
 
-    if (scopes.some((x) => x !== 'addons')) {
+    if (scopes.some(x => x !== 'addons')) {
       // Movies from the watched list; episodes from the history. (Since July 2026 Trakt's watched
       // list of shows leaves out seasons and episodes unless asked for a format it hasn't
       // documented; the history lists every play, with the show and episode.)
       if (scopes.includes('watched') || scopes.includes('library')) log.info('Trakt: reading your watch history…');
-      const [movies, plays] = await Promise.all([this.client.getAll<WatchedMovie>('/sync/watched/movies'), this.client.getAll<HistoryItem>('/sync/history/episodes')]);
+      const [movies, plays] = await Promise.all([
+        this.client.getAll<WatchedMovie>('/sync/watched/movies'),
+        this.client.getAll<HistoryItem>('/sync/history/episodes'),
+      ]);
       const watched: WatchedEntry[] = [];
       for (const m of movies) {
         const x = id(m.movie);
         if (x) watched.push({ id: x, type: 'movie', watchedAt: m.last_watched_at, name: m.movie.title });
       }
       // Group plays by show; each episode keeps its latest watch time.
-      const shows = new Map<string, { show: Media; last: string; episodes: Map<string, { season: number; episode: number; at: string }> }>();
+      const shows = new Map<
+        string,
+        { show: Media; last: string; episodes: Map<string, { season: number; episode: number; at: string }> }
+      >();
       const noShowId = new Set<string>();
       for (const p of plays) {
         if (!p.show || !p.episode) continue;
@@ -180,15 +191,20 @@ export class TraktProvider implements Provider {
           continue;
         }
         let s = shows.get(x);
-        if (!s) shows.set(x, (s = { show: p.show, last: p.watched_at, episodes: new Map() }));
+        if (!s) {
+          s = { show: p.show, last: p.watched_at, episodes: new Map() };
+          shows.set(x, s);
+        }
         if (p.watched_at > s.last) s.last = p.watched_at;
         const k = `${p.episode.season}:${p.episode.number}`;
         const cur = s.episodes.get(k);
-        if (!cur || cur.at < p.watched_at) s.episodes.set(k, { season: p.episode.season, episode: p.episode.number, at: p.watched_at });
+        if (!cur || cur.at < p.watched_at)
+          s.episodes.set(k, { season: p.episode.season, episode: p.episode.number, at: p.watched_at });
       }
       skipped.count += noShowId.size;
       for (const [x, s] of shows)
-        for (const e of s.episodes.values()) watched.push({ id: x, type: 'series', season: e.season, episode: e.episode, watchedAt: e.at, name: s.show.title });
+        for (const e of s.episodes.values())
+          watched.push({ id: x, type: 'series', season: e.season, episode: e.episode, watchedAt: e.at, name: s.show.title });
 
       // Trakt has no "whole series watched" mark; report one when every aired episode is watched,
       // as Nuvio has such a mark.
@@ -196,20 +212,28 @@ export class TraktProvider implements Provider {
       const marks = await mapLimit([...shows], 8, async ([x, s]): Promise<WatchedEntry[]> => {
         const meta = await getMeta('series', x).catch(() => undefined);
         const aired = meta ? airedEpisodes(meta) : [];
-        return aired.length && aired.every((v) => s.episodes.has(`${v.season}:${v.episode}`)) ? [{ id: x, type: 'series', watchedAt: s.last, name: s.show.title }] : [];
+        return aired.length && aired.every(v => s.episodes.has(`${v.season}:${v.episode}`))
+          ? [{ id: x, type: 'series', watchedAt: s.last, name: s.show.title }]
+          : [];
       });
       this.watchedKeys = new Set(watched.map(videoKey));
-      this.watchedTitles = new Set(watched.map((w) => w.id));
+      this.watchedTitles = new Set(watched.map(w => w.id));
       this.historyRead = true;
       if (scopes.includes('watched')) snap.watched = watched.concat(marks.flat());
       // Watched titles are part of the library too: Trakt removes them from the watchlist.
       if (scopes.includes('library')) {
-        const have = new Set(snap.library.map((e) => e.id));
+        const have = new Set(snap.library.map(e => e.id));
         for (const m of movies) {
           const x = idOf(m.movie.ids);
-          if (x && !have.has(x)) have.add(x), snap.library.push({ id: x, type: 'movie', name: m.movie.title, addedAt: m.last_watched_at });
+          if (!x || have.has(x)) continue;
+          have.add(x);
+          snap.library.push({ id: x, type: 'movie', name: m.movie.title, addedAt: m.last_watched_at });
         }
-        for (const [x, s] of shows) if (!have.has(x)) have.add(x), snap.library.push({ id: x, type: 'series', name: s.show.title, addedAt: s.last });
+        for (const [x, s] of shows) {
+          if (have.has(x)) continue;
+          have.add(x);
+          snap.library.push({ id: x, type: 'series', name: s.show.title, addedAt: s.last });
+        }
       }
     }
 
@@ -229,9 +253,22 @@ export class TraktProvider implements Provider {
         const durationMs = minutes * 60_000;
         const type: MediaType = p.type === 'movie' ? 'movie' : 'series';
         const ep = p.type === 'episode' && p.episode ? { season: p.episode.season, episode: p.episode.number } : {};
-        return [{ id: x, type, ...ep, positionMs: Math.round((p.progress / 100) * durationMs), durationMs, updatedAt: p.paused_at, name: media.title }];
+        return [
+          {
+            id: x,
+            type,
+            ...ep,
+            positionMs: Math.round((p.progress / 100) * durationMs),
+            durationMs,
+            updatedAt: p.paused_at,
+            name: media.title,
+          },
+        ];
       });
-      if (noRuntime) log.warn(`Trakt: ${noRuntime} paused item(s) have no known length, so their position can't be worked out; they're left out`);
+      if (noRuntime)
+        log.warn(
+          `Trakt: ${noRuntime} paused item(s) have no known length, so their position can't be worked out; they're left out`,
+        );
     }
 
     if (skipped.count) log.warn(`Trakt: ${skipped.count} item(s) have no IMDb or TMDB id and are left out`);
@@ -253,7 +290,8 @@ export class TraktProvider implements Provider {
 
   async apply(changes: ChangeSet, log: Logger): Promise<ApplyReport> {
     const report = emptyReport();
-    if (!this.historyRead && (changes.watched.length || changes.library.length)) throw new Error('Trakt: read the watch history before writing to it');
+    if (!this.historyRead && (changes.watched.length || changes.library.length))
+      throw new Error('Trakt: read the watch history before writing to it');
 
     // Watched → history. Each entry adds a play on Trakt, so nothing already watched is sent.
     if (changes.watched.length) {
@@ -270,16 +308,24 @@ export class TraktProvider implements Provider {
       }
       // A "whole series" mark becomes every aired episode, with the mark's time.
       await mapLimit(
-        changes.watched.filter((e) => e.type === 'series' && e.episode === undefined),
+        changes.watched.filter(e => e.type === 'series' && e.episode === undefined),
         8,
-        async (mark) => {
+        async mark => {
           const meta = await getMeta('series', mark.id).catch(() => undefined);
           const aired = meta ? airedEpisodes(meta) : [];
           if (!aired.length) {
             report.skipped.push(skippedTitle('watched', mark, 'no episode list available to mark the whole series watched'));
             return;
           }
-          for (const v of aired) add({ id: mark.id, type: 'series', season: v.season, episode: v.episode, watchedAt: mark.watchedAt, name: mark.name });
+          for (const v of aired)
+            add({
+              id: mark.id,
+              type: 'series',
+              season: v.season,
+              episode: v.episode,
+              watchedAt: mark.watchedAt,
+              name: mark.name,
+            });
         },
       );
 
@@ -299,8 +345,10 @@ export class TraktProvider implements Provider {
         }
         // Long shows go out a season at a time, so every request stays small.
         const seasons = new Map<number, { number: number; watched_at: string }[]>();
-        for (const e of eps) seasons.set(e.season!, [...(seasons.get(e.season!) ?? []), { number: e.episode!, watched_at: e.watchedAt }]);
-        for (const [number, list] of seasons) items.push({ kind: 'shows', id, body: { ids, seasons: [{ number, episodes: list }] }, plays: list.length });
+        for (const e of eps)
+          seasons.set(e.season!, [...(seasons.get(e.season!) ?? []), { number: e.episode!, watched_at: e.watchedAt }]);
+        for (const [number, list] of seasons)
+          items.push({ kind: 'shows', id, body: { ids, seasons: [{ number, episodes: list }] }, plays: list.length });
       }
       const sent = items.reduce((n, i) => n + i.plays, 0);
       if (sent) log.info(`Trakt: adding ${movies.length} movie(s) and ${episodes.size} episode(s) to the history…`);
@@ -308,7 +356,9 @@ export class TraktProvider implements Provider {
       report.written.watched += r.added;
       const missing = sent - r.added - r.notFound;
       if (missing > 0)
-        log.warn(`Trakt reported adding ${r.added.toLocaleString()} of ${sent.toLocaleString()} plays sent (${r.notFound} not found). It may still be processing the rest; reload in a few minutes.`);
+        log.warn(
+          `Trakt reported adding ${r.added.toLocaleString()} of ${sent.toLocaleString()} plays sent (${r.notFound} not found). It may still be processing the rest; reload in a few minutes.`,
+        );
       for (const e of [...movies, ...episodes.values()]) {
         this.watchedKeys.add(videoKey(e));
         this.watchedTitles.add(e.id);
@@ -363,7 +413,8 @@ export class TraktProvider implements Provider {
       }
     }
 
-    for (const a of changes.addons) report.skipped.push({ scope: 'addons', key: a.name ?? a.manifestUrl, reason: 'Trakt has no add-ons' });
+    for (const a of changes.addons)
+      report.skipped.push({ scope: 'addons', key: a.name ?? a.manifestUrl, reason: 'Trakt has no add-ons' });
     return report;
   }
 
@@ -371,7 +422,13 @@ export class TraktProvider implements Provider {
    * Sends items to a /sync endpoint in small batches. Titles Trakt can't find by IMDb/TMDB id are
    * looked up through Trakt's search and sent again by Trakt's own id.
    */
-  private async send(path: string, items: SyncItem[], scope: Scope, report: ApplyReport, log: Logger): Promise<{ added: number; existing: number; notFound: number }> {
+  private async send(
+    path: string,
+    items: SyncItem[],
+    scope: Scope,
+    report: ApplyReport,
+    log: Logger,
+  ): Promise<{ added: number; existing: number; notFound: number }> {
     const total = { added: 0, existing: 0, notFound: 0 };
     const batches = batchByPlays(items, PLAYS_PER_REQUEST);
     // Each title is reported once, even when sent a season at a time.
@@ -389,7 +446,10 @@ export class TraktProvider implements Provider {
     };
     const retry: SyncItem[] = [];
     const post = async (batch: SyncItem[]) => {
-      const body = { movies: batch.filter((i) => i.kind === 'movies').map((i) => i.body), shows: batch.filter((i) => i.kind === 'shows').map((i) => i.body) };
+      const body = {
+        movies: batch.filter(i => i.kind === 'movies').map(i => i.body),
+        shows: batch.filter(i => i.kind === 'shows').map(i => i.body),
+      };
       const r = await this.client.post<SyncResult>(path, body);
       total.added += (r.added?.movies ?? 0) + (r.added?.shows ?? 0) + (r.added?.episodes ?? 0);
       total.existing += (r.existing?.movies ?? 0) + (r.existing?.shows ?? 0) + (r.existing?.episodes ?? 0);
@@ -398,7 +458,7 @@ export class TraktProvider implements Provider {
     for (const [n, batch] of batches.entries()) {
       if (batches.length > 1) log.info(`Trakt: sending batch ${n + 1} of ${batches.length}…`);
       const r = await post(batch);
-      const missingTitles = [...(r.not_found?.movies ?? []), ...(r.not_found?.shows ?? [])].map((nf) => idOf(nf.ids));
+      const missingTitles = [...(r.not_found?.movies ?? []), ...(r.not_found?.shows ?? [])].map(nf => idOf(nf.ids));
       for (const item of batch) {
         if (!missingTitles.includes(item.id)) continue;
         // A show in the history can be "not found" when only some of its episodes didn't match;
@@ -423,7 +483,7 @@ export class TraktProvider implements Provider {
     }
     for (const batch of batchByPlays(again, PLAYS_PER_REQUEST)) {
       const r = await post(batch);
-      const missing = new Set([...(r.not_found?.movies ?? []), ...(r.not_found?.shows ?? [])].map((nf) => nf.ids.trakt));
+      const missing = new Set([...(r.not_found?.movies ?? []), ...(r.not_found?.shows ?? [])].map(nf => nf.ids.trakt));
       for (const item of batch) if (missing.has((item.body.ids as Ids).trakt)) notFound(item);
     }
     return total;
@@ -436,11 +496,15 @@ export class TraktProvider implements Provider {
     let p = this.lookups.get(key);
     if (!p) {
       const tmdb = /^tmdb:(\d+)$/.exec(id)?.[1];
-      const path = /^tt\d+$/.test(id) ? `/search/imdb/${id}?type=${type}` : tmdb ? `/search/tmdb/${tmdb}?type=${type}` : undefined;
+      const path = /^tt\d+$/.test(id)
+        ? `/search/imdb/${id}?type=${type}`
+        : tmdb
+          ? `/search/tmdb/${tmdb}?type=${type}`
+          : undefined;
       p = path
         ? this.client
             .get<{ type: string; movie?: Media; show?: Media }[]>(path)
-            .then((r) => r.find((x) => x.type === type)?.[type]?.ids.trakt)
+            .then(r => r.find(x => x.type === type)?.[type]?.ids.trakt)
             .catch(() => undefined)
         : Promise.resolve(undefined);
       this.lookups.set(key, p);

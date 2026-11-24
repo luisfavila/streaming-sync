@@ -16,7 +16,7 @@ const toBase64 = (bytes: Uint8Array) => {
   for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin);
 };
-const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 
 export interface CinemetaVideo {
   id: string;
@@ -28,7 +28,8 @@ export interface CinemetaVideo {
 /** Orders a series' videos the way Stremio does before indexing the bitfield. */
 export function orderVideoIds(videos: CinemetaVideo[]): string[] {
   const key = (n: number | undefined) => (n === undefined || n === null ? -Infinity : n);
-  const hasInfo = (v: CinemetaVideo) => v.season !== undefined && v.season !== null && v.episode !== undefined && v.episode !== null;
+  const hasInfo = (v: CinemetaVideo) =>
+    v.season !== undefined && v.season !== null && v.episode !== undefined && v.episode !== null;
   const released = (v: CinemetaVideo) => (v.released ? Date.parse(v.released) : -Infinity);
   return [...videos]
     .sort((a, b) => {
@@ -42,7 +43,7 @@ export function orderVideoIds(videos: CinemetaVideo[]): string[] {
       const rb = released(b);
       return ra === rb ? 0 : ra < rb ? -1 : 1;
     })
-    .map((v) => v.id);
+    .map(v => v.id);
 }
 
 export class WatchedBitField {

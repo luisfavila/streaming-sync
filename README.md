@@ -70,7 +70,14 @@ npm run build      # static site in dist/ (host it anywhere)
 npm test           # unit + round-trip tests (node:test)
 npm run e2e        # builds, then drives the page in headless Chromium against fake APIs
 npm run typecheck
+npm run lint       # Biome: lint + formatting check (npm run lint:fix to apply fixes)
 ```
+
+Git hooks (Husky, installed by `npm install`):
+
+- **pre-commit:** lint-staged runs Biome on the staged files and fixes what it safely can.
+- **commit-msg:** commitlint checks the message follows [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, …).
+- **pre-push:** lint, typecheck and tests over the whole project.
 
 ### Hosting on GitHub Pages
 

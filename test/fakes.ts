@@ -17,7 +17,13 @@ export const seriesVideos = [
   { id: `${SERIES}:2:1`, season: 2, episode: 1, released: past(400) },
 ];
 const metas: Record<string, unknown> = {
-  [`series/${SERIES}`]: { id: SERIES, type: 'series', name: 'Test Show', poster: 'https://img.example/show.jpg', videos: seriesVideos },
+  [`series/${SERIES}`]: {
+    id: SERIES,
+    type: 'series',
+    name: 'Test Show',
+    poster: 'https://img.example/show.jpg',
+    videos: seriesVideos,
+  },
   [`movie/${MOVIE}`]: { id: MOVIE, type: 'movie', name: 'Test Movie', poster: 'https://img.example/movie.jpg' },
 };
 
@@ -25,7 +31,13 @@ const metas: Record<string, unknown> = {
 export type Item = Record<string, any>;
 export const stremio: Record<string, { items: Map<string, Item>; addons: any[] }> = {};
 // ---- Fake Nuvio ----
-export const nuvio = { library: new Map<string, any>(), watched: new Map<string, any>(), progress: new Map<string, any>(), addons: [] as any[], calls: [] as string[] };
+export const nuvio = {
+  library: new Map<string, any>(),
+  watched: new Map<string, any>(),
+  progress: new Map<string, any>(),
+  addons: [] as any[],
+  calls: [] as string[],
+};
 
 // ---- Fake Trakt ----
 /** Titles Trakt knows, with runtimes in minutes. */
@@ -45,7 +57,14 @@ export const trakt = {
   watchlist: [] as { type: 'movie' | 'show'; imdb: string; listed_at: string }[],
   /** One row per play. */
   history: [] as { imdb: string; season?: number; episode?: number; watched_at: string }[],
-  playback: [] as { imdb: string; type: 'movie' | 'episode'; season?: number; episode?: number; progress: number; paused_at: string }[],
+  playback: [] as {
+    imdb: string;
+    type: 'movie' | 'episode';
+    season?: number;
+    episode?: number;
+    progress: number;
+    paused_at: string;
+  }[],
   refreshes: 0,
   /** /oauth calls that carried a client secret. */
   secretsSent: 0,
@@ -73,7 +92,12 @@ export function traktAuthorize(href: string): URLSearchParams {
   trakt.codes.set(code, { challenge: q.get('code_challenge')!, redirectUri: q.get('redirect_uri')! });
   return new URLSearchParams({ code, state: q.get('state')! });
 }
-const media = (imdb: string) => ({ title: TRAKT_TITLES[imdb]?.title ?? imdb, year: 2020, ids: { trakt: TRAKT_IDS[imdb] ?? 1, slug: imdb, imdb }, runtime: TRAKT_TITLES[imdb]?.runtime });
+const media = (imdb: string) => ({
+  title: TRAKT_TITLES[imdb]?.title ?? imdb,
+  year: 2020,
+  ids: { trakt: TRAKT_IDS[imdb] ?? 1, slug: imdb, imdb },
+  runtime: TRAKT_TITLES[imdb]?.runtime,
+});
 
 /** One page of a list, with Trakt's pagination headers (Trakt pages its lists; at most 100 here). */
 function paged(url: URL, list: unknown[]): Response {
@@ -84,7 +108,14 @@ function paged(url: URL, list: unknown[]): Response {
   const slice = list.slice((Math.min(page, pages) - 1) * limit, Math.min(page, pages) * limit);
   return new Response(JSON.stringify(slice), {
     status: 200,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Pagination-Page': String(page), 'X-Pagination-Page-Count': String(pages), 'X-Pagination-Limit': String(limit), 'X-Pagination-Item-Count': String(list.length) },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-Pagination-Page': String(page),
+      'X-Pagination-Page-Count': String(pages),
+      'X-Pagination-Limit': String(limit),
+      'X-Pagination-Item-Count': String(list.length),
+    },
   });
 }
 
@@ -93,24 +124,53 @@ function fakeTrakt(url: URL, method: string, headers: Headers, body: any): Respo
   assert.equal(headers.get('trakt-api-key'), TRAKT_APP.clientId);
   assert.equal(headers.get('trakt-api-version'), '2');
   if (path.startsWith('/oauth/') && body?.client_secret !== undefined) trakt.secretsSent++;
-  if (path === '/oauth/device/code') return reply({ device_code: 'dev-code', user_code: 'ABCD1234', verification_url: 'https://trakt.tv/activate', expires_in: 600, interval: 1 });
+  if (path === '/oauth/device/code')
+    return reply({
+      device_code: 'dev-code',
+      user_code: 'ABCD1234',
+      verification_url: 'https://trakt.tv/activate',
+      expires_in: 600,
+      interval: 1,
+    });
   if (path === '/oauth/device/token') {
     // The secret is optional since Trakt stopped issuing them; when sent, it must match.
     if (body.client_secret !== undefined) assert.equal(body.client_secret, TRAKT_APP.clientSecret);
-    return trakt.approved ? reply({ access_token: 'trakt-access', refresh_token: 'trakt-refresh', expires_in: 86400, created_at: Math.floor(Date.now() / 1000) }) : reply({}, 400);
+    return trakt.approved
+      ? reply({
+          access_token: 'trakt-access',
+          refresh_token: 'trakt-refresh',
+          expires_in: 86400,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+      : reply({}, 400);
   }
   if (path === '/oauth/token' && body.grant_type === 'authorization_code') {
     // PKCE: the verifier proves it's the page that started the sign-in; no secret.
     assert.equal(body.client_secret, undefined, 'no client secret with PKCE');
     const issued = trakt.codes.get(body.code);
-    if (!issued || createHash('sha256').update(body.code_verifier).digest('base64url') !== issued.challenge || body.redirect_uri !== issued.redirectUri) return reply({ error: 'invalid_grant' }, 400);
+    if (
+      !issued ||
+      createHash('sha256').update(body.code_verifier).digest('base64url') !== issued.challenge ||
+      body.redirect_uri !== issued.redirectUri
+    )
+      return reply({ error: 'invalid_grant' }, 400);
     trakt.codes.delete(body.code);
-    return reply({ access_token: 'trakt-access', refresh_token: 'trakt-refresh', expires_in: 86400, created_at: Math.floor(Date.now() / 1000) });
+    return reply({
+      access_token: 'trakt-access',
+      refresh_token: 'trakt-refresh',
+      expires_in: 86400,
+      created_at: Math.floor(Date.now() / 1000),
+    });
   }
   if (path === '/oauth/token') {
     trakt.refreshes++;
     trakt.refreshRedirects.push(body.redirect_uri);
-    return reply({ access_token: 'trakt-access', refresh_token: 'trakt-refresh-2', expires_in: 86400, created_at: Math.floor(Date.now() / 1000) });
+    return reply({
+      access_token: 'trakt-access',
+      refresh_token: 'trakt-refresh-2',
+      expires_in: 86400,
+      created_at: Math.floor(Date.now() / 1000),
+    });
   }
   if (path === '/oauth/revoke') return reply({});
   assert.equal(headers.get('authorization'), 'Bearer trakt-access');
@@ -121,7 +181,12 @@ function fakeTrakt(url: URL, method: string, headers: Headers, body: any): Respo
   };
   const known = (ids: any) => resolve(ids) !== undefined;
   if (method === 'POST' && path.startsWith('/sync/')) {
-    const plays = (body.movies?.length ?? 0) + (body.shows ?? []).reduce((n: number, s: any) => n + (s.seasons ? s.seasons.reduce((m: number, se: any) => m + se.episodes.length, 0) : 1), 0);
+    const plays =
+      (body.movies?.length ?? 0) +
+      (body.shows ?? []).reduce(
+        (n: number, s: any) => n + (s.seasons ? s.seasons.reduce((m: number, se: any) => m + se.episodes.length, 0) : 1),
+        0,
+      );
     trakt.writes.push({ path, size: plays });
   }
   const search = /^\/search\/imdb\/(tt\d+)$/.exec(path);
@@ -130,10 +195,14 @@ function fakeTrakt(url: URL, method: string, headers: Headers, body: any): Respo
     const id = search[1]!;
     return reply(id in TRAKT_TITLES ? [{ type, [type!]: media(id) }] : []);
   }
-  if (path === '/users/settings') return reply({ user: { username: 'traktuser', ids: { slug: 'traktuser', uuid: 'trakt-uuid' } } });
+  if (path === '/users/settings')
+    return reply({ user: { username: 'traktuser', ids: { slug: 'traktuser', uuid: 'trakt-uuid' } } });
   if (method === 'GET' && path.startsWith('/sync/watchlist/')) {
     const type = path.endsWith('movies') ? 'movie' : 'show';
-    return paged(url, trakt.watchlist.filter((w) => w.type === type).map((w) => ({ listed_at: w.listed_at, type, [type]: media(w.imdb) })));
+    return paged(
+      url,
+      trakt.watchlist.filter(w => w.type === type).map(w => ({ listed_at: w.listed_at, type, [type]: media(w.imdb) })),
+    );
   }
   if (method === 'POST' && path === '/sync/watchlist') {
     const added = { movies: 0, shows: 0 };
@@ -141,8 +210,12 @@ function fakeTrakt(url: URL, method: string, headers: Headers, body: any): Respo
     for (const kind of ['movies', 'shows'] as const)
       for (const m of body[kind] ?? []) {
         if (!known(m.ids)) not_found[kind].push(m);
-        else if (!trakt.watchlist.some((w) => w.imdb === resolve(m.ids))) {
-          trakt.watchlist.push({ type: kind === 'movies' ? 'movie' : 'show', imdb: resolve(m.ids)!, listed_at: new Date().toISOString() });
+        else if (!trakt.watchlist.some(w => w.imdb === resolve(m.ids))) {
+          trakt.watchlist.push({
+            type: kind === 'movies' ? 'movie' : 'show',
+            imdb: resolve(m.ids)!,
+            listed_at: new Date().toISOString(),
+          });
           added[kind]++;
         }
       }
@@ -150,7 +223,7 @@ function fakeTrakt(url: URL, method: string, headers: Headers, body: any): Respo
   }
   if (path === '/sync/watched/movies') {
     const by = new Map<string, any>();
-    for (const h of trakt.history.filter((h) => h.season === undefined)) {
+    for (const h of trakt.history.filter(h => h.season === undefined)) {
       const cur = by.get(h.imdb) ?? { plays: 0, last_watched_at: h.watched_at, movie: media(h.imdb) };
       cur.plays++;
       if (h.watched_at > cur.last_watched_at) cur.last_watched_at = h.watched_at;
@@ -159,8 +232,18 @@ function fakeTrakt(url: URL, method: string, headers: Headers, body: any): Respo
     return paged(url, [...by.values()]);
   }
   if (path === '/sync/history/episodes') {
-    const plays = trakt.history.filter((h) => h.season !== undefined).sort((a, b) => b.watched_at.localeCompare(a.watched_at));
-    return paged(url, plays.map((h, i) => ({ id: i + 1, watched_at: h.watched_at, action: 'watch', type: 'episode', episode: { season: h.season, number: h.episode, ids: { trakt: i } }, show: media(h.imdb) })));
+    const plays = trakt.history.filter(h => h.season !== undefined).sort((a, b) => b.watched_at.localeCompare(a.watched_at));
+    return paged(
+      url,
+      plays.map((h, i) => ({
+        id: i + 1,
+        watched_at: h.watched_at,
+        action: 'watch',
+        type: 'episode',
+        episode: { season: h.season, number: h.episode, ids: { trakt: i } },
+        show: media(h.imdb),
+      })),
+    );
   }
   if (path === '/sync/watched/shows') {
     // Since July 2026: no seasons unless extended=progress. The page shouldn't rely on it.
@@ -171,50 +254,78 @@ function fakeTrakt(url: URL, method: string, headers: Headers, body: any): Respo
     const not_found = { movies: [] as any[], shows: [] as any[], episodes: [] as any[] };
     for (const m of body.movies ?? []) {
       if (!known(m.ids)) not_found.movies.push(m);
-      else trakt.history.push({ imdb: resolve(m.ids)!, watched_at: m.watched_at }), added.movies++;
+      else {
+        trakt.history.push({ imdb: resolve(m.ids)!, watched_at: m.watched_at });
+        added.movies++;
+      }
     }
     for (const sh of body.shows ?? []) {
       if (!known(sh.ids)) not_found.shows.push(sh);
       else {
-        assert.ok(sh.seasons?.length, 'shows are sent with their episodes, never as a whole (that would add plays to every episode)');
+        assert.ok(
+          sh.seasons?.length,
+          'shows are sent with their episodes, never as a whole (that would add plays to every episode)',
+        );
         // Episode 99 doesn't exist here. Like Trakt, the rest are added and the show is still
         // listed as not found.
         let missed = false;
         for (const se of sh.seasons)
           for (const e of se.episodes) {
             if (e.number === 99) missed = true;
-            else trakt.history.push({ imdb: resolve(sh.ids)!, season: se.number, episode: e.number, watched_at: e.watched_at }), added.episodes++;
+            else {
+              trakt.history.push({ imdb: resolve(sh.ids)!, season: se.number, episode: e.number, watched_at: e.watched_at });
+              added.episodes++;
+            }
           }
         if (missed) not_found.shows.push(sh);
       }
     }
     // Like Trakt: watched titles leave the watchlist.
-    const watchedNow = new Set(trakt.history.map((h) => h.imdb));
-    trakt.watchlist = trakt.watchlist.filter((w) => !watchedNow.has(w.imdb));
+    const watchedNow = new Set(trakt.history.map(h => h.imdb));
+    trakt.watchlist = trakt.watchlist.filter(w => !watchedNow.has(w.imdb));
     return reply({ added, not_found }, 201);
   }
   if (path === '/sync/playback') {
     assert.equal(url.searchParams.get('extended'), 'full');
     return paged(
       url,
-      trakt.playback.map((p) =>
+      trakt.playback.map(p =>
         p.type === 'movie'
           ? { progress: p.progress, paused_at: p.paused_at, type: 'movie', movie: media(p.imdb) }
-          : { progress: p.progress, paused_at: p.paused_at, type: 'episode', show: media(p.imdb), episode: { season: p.season, number: p.episode, runtime: TRAKT_TITLES[p.imdb]?.runtime } },
+          : {
+              progress: p.progress,
+              paused_at: p.paused_at,
+              type: 'episode',
+              show: media(p.imdb),
+              episode: { season: p.season, number: p.episode, runtime: TRAKT_TITLES[p.imdb]?.runtime },
+            },
       ),
     );
   }
   if (method === 'POST' && path === '/scrobble/pause') {
     const imdb = (body.movie ?? body.show)?.ids?.imdb;
     if (!(imdb in TRAKT_TITLES)) return reply({}, 404);
-    const entry = { imdb, type: body.movie ? ('movie' as const) : ('episode' as const), season: body.episode?.season, episode: body.episode?.number, progress: body.progress, paused_at: new Date().toISOString() };
-    trakt.playback = trakt.playback.filter((p) => !(p.imdb === imdb && p.season === entry.season && p.episode === entry.episode)).concat(entry);
+    const entry = {
+      imdb,
+      type: body.movie ? ('movie' as const) : ('episode' as const),
+      season: body.episode?.season,
+      episode: body.episode?.number,
+      progress: body.progress,
+      paused_at: new Date().toISOString(),
+    };
+    trakt.playback = trakt.playback
+      .filter(p => !(p.imdb === imdb && p.season === entry.season && p.episode === entry.episode))
+      .concat(entry);
     return reply({ id: 1, action: 'pause', progress: body.progress }, 201);
   }
   throw new Error(`unexpected Trakt request ${method} ${url.href}`);
 }
 
-const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+const reply = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
 
 export async function fakeFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
   {
@@ -226,13 +337,17 @@ export async function fakeFetch(input: string | URL | Request, init?: RequestIni
       const meta = m && metas[`${m[1]}/${decodeURIComponent(m[2]!)}`];
       return meta ? reply({ meta }) : reply({}, 404);
     }
-    if (url.hostname === 'addons.example') return reply({ id: url.pathname.split('/')[1], name: 'Example ' + url.pathname.split('/')[1], version: '1.0.0' });
+    if (url.hostname === 'addons.example')
+      return reply({ id: url.pathname.split('/')[1], name: `Example ${url.pathname.split('/')[1]}`, version: '1.0.0' });
 
     if (url.hostname === 'api.trakt.tv') return fakeTrakt(url, init?.method ?? 'GET', new Headers(init?.headers), body);
 
     if (url.hostname === 'api.strem.io') {
       const method = url.pathname.replace('/api/', '');
-      if (method === 'login') return stremio[body.password] ? reply({ result: { authKey: body.password } }) : reply({ error: { code: 3, message: 'Wrong password' } });
+      if (method === 'login')
+        return stremio[body.password]
+          ? reply({ result: { authKey: body.password } })
+          : reply({ error: { code: 3, message: 'Wrong password' } });
       const acct = stremio[body.authKey];
       if (!acct) return reply({ error: { code: 1, message: 'Session does not exist' } });
       switch (method) {
@@ -241,7 +356,7 @@ export async function fakeFetch(input: string | URL | Request, init?: RequestIni
         case 'logout':
           return reply({ result: { success: true } });
         case 'datastoreGet':
-          return reply({ result: [...acct.items.values()].map((i) => structuredClone(i)) });
+          return reply({ result: [...acct.items.values()].map(i => structuredClone(i)) });
         case 'datastorePut':
           for (const i of body.changes) acct.items.set(i._id, structuredClone(i));
           return reply({ result: { success: true } });
@@ -255,8 +370,14 @@ export async function fakeFetch(input: string | URL | Request, init?: RequestIni
 
     if (url.hostname === 'api.nuvio.tv') {
       if (url.pathname === '/auth/v1/token') {
-        if (url.searchParams.get('grant_type') === 'password' && body.password !== 'nuvio-pass') return reply({ error_description: 'Invalid login credentials' }, 400);
-        return reply({ access_token: 'fake-access', refresh_token: 'fake-refresh', expires_in: 3600, user: { id: 'nuvio-user', email: 'me@nuvio.test' } });
+        if (url.searchParams.get('grant_type') === 'password' && body.password !== 'nuvio-pass')
+          return reply({ error_description: 'Invalid login credentials' }, 400);
+        return reply({
+          access_token: 'fake-access',
+          refresh_token: 'fake-refresh',
+          expires_in: 3600,
+          user: { id: 'nuvio-user', email: 'me@nuvio.test' },
+        });
       }
       assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer fake-access');
       if (url.pathname === '/rest/v1/addons') {

@@ -2,7 +2,7 @@
 // To once more to see what landed. Kept apart from the page so the tests can run it on fakes.
 
 import { type AddonEntry, type ChangeSet, SCOPES, type Snapshot } from '../model.ts';
-import { type ApplyReport, type Logger, type Provider, emptyReport } from '../providers/types.ts';
+import { type ApplyReport, emptyReport, type Logger, type Provider } from '../providers/types.ts';
 import { addonDiff, addonDiffSize, selectedChanges, withinConfirmed } from './compare.ts';
 import { countChanges, plan } from './plan.ts';
 
@@ -42,7 +42,8 @@ export async function runWrite(o: WriteInput): Promise<WriteOutcome> {
   const { to, toLabel, log } = o;
   const rules = to.unsupported?.bind(to);
   // Planned on To's state at that moment, but limited to what the confirmation showed.
-  const changesFor = (target: Snapshot) => (o.from ? withinConfirmed(selectedChanges(plan(o.from, target, SCOPES, rules), o.excluded), o.confirmed) : NO_CHANGES);
+  const changesFor = (target: Snapshot) =>
+    o.from ? withinConfirmed(selectedChanges(plan(o.from, target, SCOPES, rules), o.excluded), o.confirmed) : NO_CHANGES;
 
   // Read again right before writing: the write builds on To's current state, and providers
   // build on their last read (e.g. Trakt uses it to avoid adding plays twice).
@@ -55,7 +56,9 @@ export async function runWrite(o: WriteInput): Promise<WriteOutcome> {
   let addons = o.addons;
   if (addons && addonDiffSize(addonDiff(o.loadedAddons, fresh.addons)) > 0) {
     addons = undefined;
-    log.warn(`${toLabel}'s add-ons changed since the page loaded them, so the add-on list wasn't saved. Check the Add-ons tab and write again.`);
+    log.warn(
+      `${toLabel}'s add-ons changed since the page loaded them, so the add-on list wasn't saved. Check the Add-ons tab and write again.`,
+    );
   }
 
   const report = emptyReport();
@@ -73,11 +76,11 @@ export async function runWrite(o: WriteInput): Promise<WriteOutcome> {
   }
 
   log.info('Checking the result…');
-  if (o.settleMs !== 0) await new Promise((r) => setTimeout(r, o.settleMs ?? 2000));
+  if (o.settleMs !== 0) await new Promise(r => setTimeout(r, o.settleMs ?? 2000));
   const after = await o.readAfter();
   const left = countChanges(changesFor(after));
   // Apps that can't switch add-ons off don't install switched-off ones.
-  const expected = addons && (to.canDisableAddons ? addons : addons.filter((a) => a.enabled !== false));
+  const expected = addons && (to.canDisableAddons ? addons : addons.filter(a => a.enabled !== false));
   const addonsLeft = expected ? addonDiffSize(addonDiff(after.addons, expected)) : 0;
   return { report, left, addonsLeft };
 }

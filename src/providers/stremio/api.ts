@@ -72,7 +72,7 @@ async function call<T>(method: string, body: Record<string, unknown>): Promise<T
   if (data.error) {
     const code = data.error.code;
     const hint = code !== undefined ? ERROR_HINTS[code] : undefined;
-    throw new StremioError(`Stremio ${method}: ${hint ?? data.error.message ?? 'error ' + code}`, code);
+    throw new StremioError(`Stremio ${method}: ${hint ?? data.error.message ?? `error ${code}`}`, code);
   }
   if (!res.ok) throw new StremioError(`Stremio ${method}: HTTP ${res.status}`);
   return data.result as T;
@@ -95,7 +95,7 @@ export async function getUser(authKey: string): Promise<{ _id: string; email?: s
 export async function linkCreate(): Promise<{ code: string; link: string; qrcode: string }> {
   const res = await fetch(`${LINK_API}create?type=Create`);
   const data = (await res.json()) as { result?: { code: string; link: string; qrcode: string }; error?: { message?: string } };
-  if (!data.result) throw new StremioError(`Stremio link: ${data.error?.message ?? 'HTTP ' + res.status}`);
+  if (!data.result) throw new StremioError(`Stremio link: ${data.error?.message ?? `HTTP ${res.status}`}`);
   return data.result;
 }
 
@@ -119,7 +119,11 @@ export async function libraryPut(authKey: string, changes: StremioLibraryItem[])
 }
 
 export async function addonsGet(authKey: string): Promise<StremioAddonDescriptor[]> {
-  const r = await call<{ addons: StremioAddonDescriptor[] }>('addonCollectionGet', { type: 'AddonCollectionGet', authKey, update: true });
+  const r = await call<{ addons: StremioAddonDescriptor[] }>('addonCollectionGet', {
+    type: 'AddonCollectionGet',
+    authKey,
+    update: true,
+  });
   return r.addons ?? [];
 }
 

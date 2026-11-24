@@ -10,16 +10,27 @@
     "preview": "vite preview",
     "test": "node --test \"test/**/*.test.ts\"",
     "typecheck": "tsc",
-    "e2e": "VITE_TRAKT_CLIENT_ID= vite build --outDir dist-e2e --emptyOutDir && node test/e2e-browser.ts"
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "e2e": "VITE_TRAKT_CLIENT_ID= vite build --outDir dist-e2e --emptyOutDir && node test/e2e-browser.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@types/node": "^22.10.0",
     "@types/pako": "^2.0.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.2",
     "typescript": "^5.9.0",
     "vite": "^6.4.6"
   },
   "dependencies": {
     "pako": "^2.2.0",
     "preact": "^10.29.8"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json}": "biome check --write --no-errors-on-unmatched"
   }
 }

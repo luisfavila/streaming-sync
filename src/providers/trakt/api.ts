@@ -54,7 +54,7 @@ export class TraktError extends Error {
   }
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 const STATUS_HINTS: Record<number, string> = {
   401: 'Trakt rejected the sign-in; sign in again',
@@ -63,7 +63,10 @@ const STATUS_HINTS: Record<number, string> = {
   423: 'the Trakt account is locked',
 };
 
-async function request<T>(path: string, init: { method?: string; body?: unknown; clientId: string; token?: string }): Promise<{ status: number; data: T; headers: Headers }> {
+async function request<T>(
+  path: string,
+  init: { method?: string; body?: unknown; clientId: string; token?: string },
+): Promise<{ status: number; data: T; headers: Headers }> {
   const method = init.method ?? 'GET';
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(API + path, {
@@ -96,7 +99,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     }
     if (res.ok) return { status: res.status, data: data as T, headers: res.headers };
     const d = data as { error_description?: string; error?: string } | null;
-    throw new TraktError(`Trakt: ${d?.error_description || d?.error || STATUS_HINTS[res.status] || `HTTP ${res.status}`}`, res.status);
+    throw new TraktError(
+      `Trakt: ${d?.error_description || d?.error || STATUS_HINTS[res.status] || `HTTP ${res.status}`}`,
+      res.status,
+    );
   }
 }
 
@@ -115,7 +121,11 @@ const toSession = (t: TokenResponse, redirectUri?: string): TraktSession => ({
 
 // ---- PKCE sign-in: Trakt's page approves, then redirects back with a code ----
 
-const base64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const base64url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 
 /** A fresh code verifier (64 characters) and its S256 challenge. */
 export async function pkcePair(): Promise<{ verifier: string; challenge: string }> {
@@ -125,7 +135,14 @@ export async function pkcePair(): Promise<{ verifier: string; challenge: string 
 }
 
 export function authorizeUrl(app: TraktApp, redirectUri: string, challenge: string, state: string): string {
-  const q = new URLSearchParams({ response_type: 'code', client_id: app.clientId, redirect_uri: redirectUri, state, code_challenge: challenge, code_challenge_method: 'S256' });
+  const q = new URLSearchParams({
+    response_type: 'code',
+    client_id: app.clientId,
+    redirect_uri: redirectUri,
+    state,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+  });
   return `${AUTHORIZE}?${q}`;
 }
 
@@ -134,13 +151,20 @@ export async function exchangeCode(app: TraktApp, code: string, verifier: string
   try {
     const r = await request<TokenResponse>('/oauth/token', {
       method: 'POST',
-      body: { code, client_id: app.clientId, code_verifier: verifier, redirect_uri: redirectUri, grant_type: 'authorization_code' },
+      body: {
+        code,
+        client_id: app.clientId,
+        code_verifier: verifier,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      },
       clientId: app.clientId,
     });
     return toSession(r.data, redirectUri);
   } catch (e) {
     const status = (e as TraktError).status;
-    if (status === 400 || status === 401) throw new TraktError("Trakt didn't accept the sign-in (it may have expired). Try again.", status);
+    if (status === 400 || status === 401)
+      throw new TraktError("Trakt didn't accept the sign-in (it may have expired). Try again.", status);
     throw e;
   }
 }
@@ -156,7 +180,9 @@ export interface DeviceCode {
 }
 
 export async function deviceCode(app: TraktApp): Promise<DeviceCode> {
-  return (await request<DeviceCode>('/oauth/device/code', { method: 'POST', body: { client_id: app.clientId }, clientId: app.clientId })).data;
+  return (
+    await request<DeviceCode>('/oauth/device/code', { method: 'POST', body: { client_id: app.clientId }, clientId: app.clientId })
+  ).data;
 }
 
 /** One poll: the session once approved, 'pending' while waiting, 'slow' when asked to poll less often. */
@@ -183,18 +209,31 @@ export async function pollDeviceCode(app: TraktApp, code: string): Promise<Trakt
   }
 }
 
-export async function refreshSession(app: TraktApp, session: Pick<TraktSession, 'refreshToken' | 'redirectUri'>): Promise<TraktSession> {
+export async function refreshSession(
+  app: TraktApp,
+  session: Pick<TraktSession, 'refreshToken' | 'redirectUri'>,
+): Promise<TraktSession> {
   // A PKCE session refreshes as a public client: same redirect URI, no secret.
   const r = await request<TokenResponse>('/oauth/token', {
     method: 'POST',
-    body: { refresh_token: session.refreshToken, client_id: app.clientId, ...(session.redirectUri ? {} : secret(app)), redirect_uri: session.redirectUri ?? OOB, grant_type: 'refresh_token' },
+    body: {
+      refresh_token: session.refreshToken,
+      client_id: app.clientId,
+      ...(session.redirectUri ? {} : secret(app)),
+      redirect_uri: session.redirectUri ?? OOB,
+      grant_type: 'refresh_token',
+    },
     clientId: app.clientId,
   });
   return toSession(r.data, session.redirectUri);
 }
 
 export async function revoke(app: TraktApp, accessToken: string): Promise<void> {
-  await request('/oauth/revoke', { method: 'POST', body: { token: accessToken, client_id: app.clientId, ...secret(app) }, clientId: app.clientId });
+  await request('/oauth/revoke', {
+    method: 'POST',
+    body: { token: accessToken, client_id: app.clientId, ...secret(app) },
+    clientId: app.clientId,
+  });
 }
 
 export interface TraktUser {
@@ -213,7 +252,12 @@ export class TraktClient {
   /** Trakt allows one write per second per user. */
   private readonly writeIntervalMs: number;
 
-  constructor(app: TraktApp, session: TraktSession, onRotate: (s: TraktSession) => void, opts: { writeIntervalMs?: number } = {}) {
+  constructor(
+    app: TraktApp,
+    session: TraktSession,
+    onRotate: (s: TraktSession) => void,
+    opts: { writeIntervalMs?: number } = {},
+  ) {
     this.app = app;
     this.session = { ...session };
     this.onRotate = onRotate;

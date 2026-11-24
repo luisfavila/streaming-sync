@@ -3,13 +3,13 @@ import { useMemo, useState } from 'preact/hooks';
 import type { Snapshot } from '../model.ts';
 import {
   type LibraryRow,
+  libraryRows,
   type ProgressRow,
+  progressRows,
   type Row,
   type RowState,
-  type WatchedRow,
-  libraryRows,
-  progressRows,
   selectionKey,
+  type WatchedRow,
   watchedRows,
 } from '../sync/compare.ts';
 import type { Plan } from '../sync/plan.ts';
@@ -19,8 +19,19 @@ type TitleTab = 'library' | 'watched' | 'progress';
 export type Tab = TitleTab | 'addons';
 type Filter = 'copy' | 'skip' | 'toOnly' | 'both' | 'all';
 
-const TAB_LABEL: Record<Tab, string> = { library: 'Library', watched: 'Watched', progress: 'Continue Watching', addons: 'Add-ons' };
-const FILTER_LABEL: Record<Filter, string> = { copy: 'To copy', skip: 'Won’t copy', toOnly: 'Only on To', both: 'On both', all: 'All' };
+const TAB_LABEL: Record<Tab, string> = {
+  library: 'Library',
+  watched: 'Watched',
+  progress: 'Continue Watching',
+  addons: 'Add-ons',
+};
+const FILTER_LABEL: Record<Filter, string> = {
+  copy: 'To copy',
+  skip: 'Won’t copy',
+  toOnly: 'Only on To',
+  both: 'On both',
+  all: 'All',
+};
 const PAGE = 150;
 
 export function Compare(props: {
@@ -50,7 +61,8 @@ export function Compare(props: {
     [props.source, props.target, props.plan],
   );
 
-  const selectedCount = (t: TitleTab) => rows[t].filter((r) => r.state === 'copy' && !props.excluded.has(selectionKey(t, r.id))).length;
+  const selectedCount = (t: TitleTab) =>
+    rows[t].filter(r => r.state === 'copy' && !props.excluded.has(selectionKey(t, r.id))).length;
   const name = (r: Row<unknown>) => r.name ?? props.names.get(r.id) ?? r.id;
 
   const switchTab = (t: Tab) => {
@@ -67,10 +79,10 @@ export function Compare(props: {
     const q = query.trim().toLowerCase();
     const matches = (r: Row<unknown>) => !q || name(r).toLowerCase().includes(q) || r.id.toLowerCase().includes(q);
     const searched = all.filter(matches);
-    const count = (f: Filter) => searched.filter((r) => inFilter(r.state, f)).length;
-    const list = searched.filter((r) => inFilter(r.state, effective));
-    const copyable = list.filter((r) => r.state === 'copy');
-    const allTicked = copyable.length > 0 && copyable.every((r) => !props.excluded.has(selectionKey(tab, r.id)));
+    const count = (f: Filter) => searched.filter(r => inFilter(r.state, f)).length;
+    const list = searched.filter(r => inFilter(r.state, effective));
+    const copyable = list.filter(r => r.state === 'copy');
+    const allTicked = copyable.length > 0 && copyable.every(r => !props.excluded.has(selectionKey(tab, r.id)));
 
     const setTicked = (ids: string[], on: boolean) => {
       const next = new Set(props.excluded);
@@ -81,28 +93,63 @@ export function Compare(props: {
     body = (
       <>
         <div class="toolbar">
-          <input type="search" class="search" placeholder="Search titles" aria-label="Search titles" value={query} onInput={(e) => (setQuery(e.currentTarget.value), setShown(PAGE))} />
+          <input
+            type="search"
+            class="search"
+            placeholder="Search titles"
+            aria-label="Search titles"
+            value={query}
+            onInput={e => {
+              setQuery(e.currentTarget.value);
+              setShown(PAGE);
+            }}
+          />
           {both && (
+            // biome-ignore lint/a11y/useSemanticElements: a row of toggle chips; a fieldset would add its own border and legend styling
             <div class="chips" role="group" aria-label="Show">
-              {(Object.keys(FILTER_LABEL) as Filter[]).filter((f) => f !== 'skip' || count('skip') > 0 || effective === 'skip').map((f) => (
-                <button type="button" class="chip" aria-pressed={effective === f} onClick={() => (setFilter(f), setShown(PAGE))}>
-                  {FILTER_LABEL[f]} <span class="chip-n">{count(f).toLocaleString()}</span>
-                </button>
-              ))}
+              {(Object.keys(FILTER_LABEL) as Filter[])
+                .filter(f => f !== 'skip' || count('skip') > 0 || effective === 'skip')
+                .map(f => (
+                  <button
+                    type="button"
+                    class="chip"
+                    aria-pressed={effective === f}
+                    onClick={() => {
+                      setFilter(f);
+                      setShown(PAGE);
+                    }}
+                  >
+                    {FILTER_LABEL[f]} <span class="chip-n">{count(f).toLocaleString()}</span>
+                  </button>
+                ))}
             </div>
           )}
         </div>
 
         {both && copyable.length > 0 && (
           <label class="check select-all">
-            <input type="checkbox" checked={allTicked} disabled={props.disabled} onChange={(e) => setTicked(copyable.map((r) => r.id), e.currentTarget.checked)} />
+            <input
+              type="checkbox"
+              checked={allTicked}
+              disabled={props.disabled}
+              onChange={e =>
+                setTicked(
+                  copyable.map(r => r.id),
+                  e.currentTarget.checked,
+                )
+              }
+            />
             Copy all {plural(copyable.length, 'title')} shown
           </label>
         )}
 
         {list.length === 0 ? (
           <p class="empty">
-            {q ? 'No titles match your search.' : effective === 'copy' ? `Nothing to copy: To already has everything From has here.` : 'Nothing here.'}
+            {q
+              ? 'No titles match your search.'
+              : effective === 'copy'
+                ? `Nothing to copy: To already has everything From has here.`
+                : 'Nothing here.'}
             {effective !== 'all' && (
               <>
                 {' '}
@@ -116,10 +163,10 @@ export function Compare(props: {
           <ul
             class="rows"
             aria-label={TAB_LABEL[tab]}
-            onScroll={(e) => {
+            onScroll={e => {
               // Render more as the list scrolls near its end.
               const el = e.currentTarget;
-              if (list.length > shown && el.scrollTop + el.clientHeight > el.scrollHeight - 400) setShown((n) => n + PAGE);
+              if (list.length > shown && el.scrollTop + el.clientHeight > el.scrollHeight - 400) setShown(n => n + PAGE);
             }}
           >
             <li class="rows-head" aria-hidden="true">
@@ -128,7 +175,7 @@ export function Compare(props: {
               <span>From</span>
               <span>To</span>
             </li>
-            {list.slice(0, shown).map((r) => (
+            {list.slice(0, shown).map(r => (
               <TitleRow
                 key={r.id}
                 tab={tab}
@@ -137,7 +184,7 @@ export function Compare(props: {
                 selectable={both}
                 ticked={!props.excluded.has(selectionKey(tab, r.id))}
                 disabled={props.disabled}
-                onTick={(on) => setTicked([r.id], on)}
+                onTick={on => setTicked([r.id], on)}
               />
             ))}
           </ul>
@@ -149,7 +196,7 @@ export function Compare(props: {
   return (
     <section class="card compare" aria-label="Compare">
       <div class="tabs" role="tablist" aria-label="What to compare">
-        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => {
+        {(Object.keys(TAB_LABEL) as Tab[]).map(t => {
           const n = t === 'addons' ? props.addonChanges : both ? selectedCount(t) : 0;
           return (
             <button type="button" role="tab" aria-selected={tab === t} onClick={() => switchTab(t)}>
@@ -174,7 +221,15 @@ function inFilter(state: RowState, f: Filter): boolean {
   return state === f;
 }
 
-function TitleRow(props: { tab: TitleTab; row: Row<unknown>; name: string; selectable: boolean; ticked: boolean; disabled: boolean; onTick: (on: boolean) => void }) {
+function TitleRow(props: {
+  tab: TitleTab;
+  row: Row<unknown>;
+  name: string;
+  selectable: boolean;
+  ticked: boolean;
+  disabled: boolean;
+  onTick: (on: boolean) => void;
+}) {
   const { tab, row } = props;
   const poster = posterUrl(row.id, row.poster);
   let from: string;
@@ -202,11 +257,22 @@ function TitleRow(props: { tab: TitleTab; row: Row<unknown>; name: string; selec
     <li class={`row row-${row.state}`}>
       <span class="row-check">
         {props.selectable && row.state === 'copy' && (
-          <input type="checkbox" id={id} checked={props.ticked} disabled={props.disabled} onChange={(e) => props.onTick(e.currentTarget.checked)} aria-label={`Copy ${props.name}`} />
+          <input
+            type="checkbox"
+            id={id}
+            checked={props.ticked}
+            disabled={props.disabled}
+            onChange={e => props.onTick(e.currentTarget.checked)}
+            aria-label={`Copy ${props.name}`}
+          />
         )}
       </span>
       <label class="row-title" for={row.state === 'copy' && props.selectable ? id : undefined}>
-        {poster ? <img class="poster" src={poster} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = 'hidden')} /> : <span class="poster" />}
+        {poster ? (
+          <img class="poster" src={poster} alt="" loading="lazy" onError={e => (e.currentTarget.style.visibility = 'hidden')} />
+        ) : (
+          <span class="poster" />
+        )}
         <span class="row-text">
           <span class="row-name">{props.name}</span>
           <span class="row-sub">

@@ -23,16 +23,21 @@ export function AddonEditor(props: {
   const [addError, setAddError] = useState<string>();
   const [dragFrom, setDragFrom] = useState<number>();
 
-  const inDraft = new Set(draft.map((a) => addonKey(a.manifestUrl)));
-  const inCurrent = new Set(current.map((a) => addonKey(a.manifestUrl)));
-  const removed = current.filter((a) => !inDraft.has(addonKey(a.manifestUrl)));
+  const inDraft = new Set(draft.map(a => addonKey(a.manifestUrl)));
+  const inCurrent = new Set(current.map(a => addonKey(a.manifestUrl)));
+  const removed = current.filter(a => !inDraft.has(addonKey(a.manifestUrl)));
   const editable = !props.locked && !props.disabled;
-  const missing = (props.source ?? []).filter((a) => !inDraft.has(addonKey(a.manifestUrl)) && !isLocalOnlyAddon(a.manifestUrl));
+  const missing = (props.source ?? []).filter(a => !inDraft.has(addonKey(a.manifestUrl)) && !isLocalOnlyAddon(a.manifestUrl));
   const dirty = JSON.stringify(draft) !== JSON.stringify(props.initial);
 
   const set = (next: AddonEntry[]) => props.onDraft(next);
   const append = (list: AddonEntry[]) =>
-    set([...draft, ...list.filter((a) => !inDraft.has(addonKey(a.manifestUrl))).map((a) => ({ ...a, protected: false, enabled: props.canDisable ? a.enabled !== false : true }))]);
+    set([
+      ...draft,
+      ...list
+        .filter(a => !inDraft.has(addonKey(a.manifestUrl)))
+        .map(a => ({ ...a, protected: false, enabled: props.canDisable ? a.enabled !== false : true })),
+    ]);
   const move = (from: number, to: number) => {
     if (to < 0 || to >= draft.length || from === to) return;
     const next = [...draft];
@@ -42,8 +47,8 @@ export function AddonEditor(props: {
   const putBack = (a: AddonEntry) => {
     // Back where it was in To's current list, as near as the draft allows.
     const i = current.indexOf(a);
-    const before = current.slice(0, i).map((x) => addonKey(x.manifestUrl));
-    const at = Math.max(0, ...before.map((k) => draft.findIndex((d) => addonKey(d.manifestUrl) === k) + 1));
+    const before = current.slice(0, i).map(x => addonKey(x.manifestUrl));
+    const at = Math.max(0, ...before.map(k => draft.findIndex(d => addonKey(d.manifestUrl) === k) + 1));
     set([...draft.slice(0, at), a, ...draft.slice(at)]);
   };
 
@@ -89,7 +94,7 @@ export function AddonEditor(props: {
           <p class="empty">No add-ons.</p>
         ) : (
           <ul class="addon-list">
-            {props.source.map((a) => {
+            {props.source.map(a => {
               const k = addonKey(a.manifestUrl);
               const local = isLocalOnlyAddon(a.manifestUrl);
               return (
@@ -127,7 +132,7 @@ export function AddonEditor(props: {
             On To after writing <span class="muted">({draft.length})</span>
           </h3>
           {dirty && editable && (
-            <button type="button" class="btn btn-quiet btn-small" onClick={() => set(props.initial.map((a) => ({ ...a })))}>
+            <button type="button" class="btn btn-quiet btn-small" onClick={() => set(props.initial.map(a => ({ ...a })))}>
               Undo edits
             </button>
           )}
@@ -140,13 +145,13 @@ export function AddonEditor(props: {
               <li
                 class={`addon ${dragFrom === i ? 'dragging' : ''} ${a.enabled === false ? 'addon-off' : ''}`}
                 draggable={editable}
-                onDragStart={(e) => {
+                onDragStart={e => {
                   setDragFrom(i);
                   e.dataTransfer?.setData('text/plain', String(i));
                 }}
                 onDragEnd={() => setDragFrom(undefined)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => {
                   e.preventDefault();
                   if (dragFrom !== undefined) move(dragFrom, i);
                   setDragFrom(undefined);
@@ -154,10 +159,22 @@ export function AddonEditor(props: {
               >
                 {editable && (
                   <span class="order">
-                    <button type="button" class="icon-btn" aria-label={`Move ${a.name ?? 'add-on'} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label={`Move ${a.name ?? 'add-on'} up`}
+                      disabled={i === 0}
+                      onClick={() => move(i, i - 1)}
+                    >
                       ↑
                     </button>
-                    <button type="button" class="icon-btn" aria-label={`Move ${a.name ?? 'add-on'} down`} disabled={i === draft.length - 1} onClick={() => move(i, i + 1)}>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label={`Move ${a.name ?? 'add-on'} down`}
+                      disabled={i === draft.length - 1}
+                      onClick={() => move(i, i + 1)}
+                    >
                       ↓
                     </button>
                   </span>
@@ -170,9 +187,10 @@ export function AddonEditor(props: {
                       type="checkbox"
                       role="switch"
                       checked={a.enabled !== false}
+                      aria-checked={a.enabled !== false}
                       disabled={!editable}
                       aria-label={`${a.name ?? 'Add-on'} on`}
-                      onChange={(e) => set(draft.map((x, j) => (j === i ? { ...x, enabled: e.currentTarget.checked } : x)))}
+                      onChange={e => set(draft.map((x, j) => (j === i ? { ...x, enabled: e.currentTarget.checked } : x)))}
                     />
                     <span class="switch-track" aria-hidden="true" />
                   </label>
@@ -183,7 +201,13 @@ export function AddonEditor(props: {
                   </span>
                 ) : (
                   editable && (
-                    <button type="button" class="icon-btn" aria-label={`Remove ${a.name ?? a.manifestUrl}`} title="Remove" onClick={() => set(draft.filter((_, j) => j !== i))}>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label={`Remove ${a.name ?? a.manifestUrl}`}
+                      title="Remove"
+                      onClick={() => set(draft.filter((_, j) => j !== i))}
+                    >
                       ✕
                     </button>
                   )
@@ -196,7 +220,7 @@ export function AddonEditor(props: {
           <div class="removed">
             <p class="warn-text">Will be removed from To:</p>
             <ul class="addon-list">
-              {removed.map((a) => (
+              {removed.map(a => (
                 <li class="addon addon-removed">
                   <AddonInfo a={a} />
                   {editable && (
@@ -211,7 +235,14 @@ export function AddonEditor(props: {
         )}
         {editable && (
           <form class="add-addon" onSubmit={addByUrl}>
-            <input type="url" placeholder="https://…/manifest.json" aria-label="Add-on URL" value={url} onInput={(e) => setUrl(e.currentTarget.value)} required />
+            <input
+              type="url"
+              placeholder="https://…/manifest.json"
+              aria-label="Add-on URL"
+              value={url}
+              onInput={e => setUrl(e.currentTarget.value)}
+              required
+            />
             <button type="submit" class="btn" disabled={adding}>
               {adding ? 'Loading…' : 'Add by URL'}
             </button>

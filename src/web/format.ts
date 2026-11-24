@@ -1,12 +1,13 @@
 import type { ProgressEntry, WatchedEntry } from '../model.ts';
 
-export const plural = (n: number, one: string, many = one + 's') => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+export const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
-export const ep = (s?: number, e?: number) => (s !== undefined && e !== undefined ? `S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}` : '');
+export const ep = (s?: number, e?: number) =>
+  s !== undefined && e !== undefined ? `S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}` : '';
 
 /** "S01E01–S02E03" for a list of episodes (sorted here). */
 export function episodeRange(list: WatchedEntry[]): string {
-  const eps = list.filter((w) => w.episode !== undefined).sort((a, b) => a.season! - b.season! || a.episode! - b.episode!);
+  const eps = list.filter(w => w.episode !== undefined).sort((a, b) => a.season! - b.season! || a.episode! - b.episode!);
   if (!eps.length) return '';
   const first = ep(eps[0]!.season, eps[0]!.episode);
   const last = ep(eps.at(-1)!.season, eps.at(-1)!.episode);
@@ -17,8 +18,8 @@ export function episodeRange(list: WatchedEntry[]): string {
 export function watchedSummary(list: WatchedEntry[] | undefined): string {
   if (!list?.length) return '';
   if (list[0]!.type === 'movie') return 'Watched';
-  const eps = list.filter((e) => e.episode !== undefined).length;
-  const whole = list.some((e) => e.episode === undefined);
+  const eps = list.filter(e => e.episode !== undefined).length;
+  const whole = list.some(e => e.episode === undefined);
   if (!eps) return 'Whole series';
   return whole ? `${plural(eps, 'episode')}, all aired` : plural(eps, 'episode');
 }
@@ -27,10 +28,10 @@ export function watchedSummary(list: WatchedEntry[] | undefined): string {
 export function watchedMissing(list: WatchedEntry[]): string {
   if (!list.length) return '';
   if (list[0]!.type === 'movie') return 'Watched mark';
-  const eps = list.filter((e) => e.episode !== undefined);
+  const eps = list.filter(e => e.episode !== undefined);
   const parts: string[] = [];
   if (eps.length) parts.push(`${plural(eps.length, 'episode')} (${episodeRange(eps)})`);
-  if (list.some((e) => e.episode === undefined)) parts.push('whole-series mark');
+  if (list.some(e => e.episode === undefined)) parts.push('whole-series mark');
   return parts.join(' and ');
 }
 

@@ -88,7 +88,8 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
     const ctrl = new AbortController();
     abort.current = ctrl;
     try {
-      const code = app === 'stremio' ? await auth.stremioLink() : app === 'nuvio' ? await auth.nuvioLink() : await auth.traktLink(traktApp!);
+      const code =
+        app === 'stremio' ? await auth.stremioLink() : app === 'nuvio' ? await auth.nuvioLink() : await auth.traktLink(traktApp!);
       if (ctrl.signal.aborted) return;
       setLink(code);
       setBusy(false);
@@ -123,8 +124,9 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
 
   return (
     <div class="signin">
+      {/* biome-ignore lint/a11y/useSemanticElements: a segmented toggle; a fieldset would add its own border and legend styling */}
       <div class="segmented" role="group" aria-label="App">
-        {(['stremio', 'nuvio', 'trakt'] as const).map((a) => (
+        {(['stremio', 'nuvio', 'trakt'] as const).map(a => (
           <button type="button" aria-pressed={app === a} onClick={() => setApp(a)}>
             <span class={`dot dot-${a}`} aria-hidden="true" />
             {APP_NAME[a]}
@@ -151,9 +153,12 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
       {app === 'trakt' && !traktApp && (
         <form
           class="stack"
-          onSubmit={(e) => {
+          onSubmit={e => {
             e.preventDefault();
-            const a: TraktApp = { clientId: clientId.trim(), ...(clientSecret.trim() ? { clientSecret: clientSecret.trim() } : {}) };
+            const a: TraktApp = {
+              clientId: clientId.trim(),
+              ...(clientSecret.trim() ? { clientSecret: clientSecret.trim() } : {}),
+            };
             saveTraktApp(a);
             setTraktApp(a);
           }}
@@ -172,15 +177,29 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
           </ol>
           <label class="field">
             <span>Client ID</span>
-            <input autocomplete="off" spellcheck={false} required value={clientId} onInput={(e) => setClientId(e.currentTarget.value)} />
+            <input
+              autocomplete="off"
+              spellcheck={false}
+              required
+              value={clientId}
+              onInput={e => setClientId(e.currentTarget.value)}
+            />
           </label>
           <label class="field">
             <span>
               Client Secret <span class="muted">(optional, only older apps have one)</span>
             </span>
-            <input type="password" autocomplete="off" spellcheck={false} value={clientSecret} onInput={(e) => setClientSecret(e.currentTarget.value)} />
+            <input
+              type="password"
+              autocomplete="off"
+              spellcheck={false}
+              value={clientSecret}
+              onInput={e => setClientSecret(e.currentTarget.value)}
+            />
           </label>
-          <button class="btn btn-primary">Continue</button>
+          <button type="submit" class="btn btn-primary">
+            Continue
+          </button>
           <p class="hint">Kept in this browser and sent only to Trakt.</p>
         </form>
       )}
@@ -189,7 +208,9 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
         <div class="stack">
           {!busy ? (
             <>
-              <p class="hint">A Trakt window opens: sign in there (Google and Apple work too) and approve. No password is typed here.</p>
+              <p class="hint">
+                A Trakt window opens: sign in there (Google and Apple work too) and approve. No password is typed here.
+              </p>
               <button type="button" class="btn btn-primary" onClick={() => void startTraktWindow()}>
                 Sign in with Trakt
               </button>
@@ -216,7 +237,8 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
             <>
               <p class="hint">
                 Approve a code in a browser where you're signed in to {appName}. Works with any sign-in
-                {app === 'stremio' ? ', including Facebook and Apple' : app === 'trakt' ? ', including Google and Apple' : ''}, and no password is typed here.
+                {app === 'stremio' ? ', including Facebook and Apple' : app === 'trakt' ? ', including Google and Apple' : ''},
+                and no password is typed here.
               </p>
               {app === 'trakt' && !BUILT_IN_APP && (
                 <p class="hint">
@@ -266,20 +288,26 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
       {shownMethod === 'password' && (
         <form
           class="stack"
-          onSubmit={(e) => {
+          onSubmit={e => {
             e.preventDefault();
             run(() => (app === 'stremio' ? auth.stremioPassword(email, password) : auth.nuvioPassword(email, password)));
           }}
         >
           <label class="field">
             <span>{appName} email</span>
-            <input type="email" autocomplete="username" required value={email} onInput={(e) => setEmail(e.currentTarget.value)} />
+            <input type="email" autocomplete="username" required value={email} onInput={e => setEmail(e.currentTarget.value)} />
           </label>
           <label class="field">
             <span>Password</span>
-            <input type="password" autocomplete="current-password" required value={password} onInput={(e) => setPassword(e.currentTarget.value)} />
+            <input
+              type="password"
+              autocomplete="current-password"
+              required
+              value={password}
+              onInput={e => setPassword(e.currentTarget.value)}
+            />
           </label>
-          <button class="btn btn-primary" disabled={busy}>
+          <button type="submit" class="btn btn-primary" disabled={busy}>
             {busy ? 'Signing in…' : `Sign in to ${appName}`}
           </button>
           <p class="hint">Your password goes only to {appName}. Only the session token it returns is kept.</p>
@@ -289,28 +317,39 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
       {shownMethod === 'token' && (
         <form
           class="stack"
-          onSubmit={(e) => {
+          onSubmit={e => {
             e.preventDefault();
             run(() => (app === 'stremio' ? auth.stremioToken(token) : auth.nuvioToken(token)));
           }}
         >
           {app === 'stremio' ? (
             <p class="hint">
-              On <a href="https://web.stremio.com" target="_blank" rel="noopener noreferrer">web.stremio.com</a>, signed in, open the browser console and run:
+              On{' '}
+              <a href="https://web.stremio.com" target="_blank" rel="noopener noreferrer">
+                web.stremio.com
+              </a>
+              , signed in, open the browser console and run:
               <CopyCode text={STREMIO_SNIPPET} />
               Then paste what it copied below.
             </p>
           ) : (
             <p class="hint">
-              Paste a Nuvio refresh token, or session JSON that contains <code>refresh_token</code>. This takes over that session: the app or website you copied it from
-              will be signed out. A link code avoids this.
+              Paste a Nuvio refresh token, or session JSON that contains <code>refresh_token</code>. This takes over that session:
+              the app or website you copied it from will be signed out. A link code avoids this.
             </p>
           )}
           <label class="field">
             <span>{appName} token</span>
-            <input type="password" autocomplete="off" spellcheck={false} required value={token} onInput={(e) => setToken(e.currentTarget.value)} />
+            <input
+              type="password"
+              autocomplete="off"
+              spellcheck={false}
+              required
+              value={token}
+              onInput={e => setToken(e.currentTarget.value)}
+            />
           </label>
-          <button class="btn btn-primary" disabled={busy}>
+          <button type="submit" class="btn btn-primary" disabled={busy}>
             {busy ? 'Checking…' : 'Use this token'}
           </button>
         </form>

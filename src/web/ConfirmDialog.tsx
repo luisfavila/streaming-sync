@@ -16,7 +16,14 @@ const ICONS = {
  * Asks before writing, listing everything that will change on the To side. A modal dialog:
  * Escape or the backdrop cancels.
  */
-export function ConfirmDialog(props: { app: string; who: string; changes: ChangeSet; addons?: AddonDiff; onConfirm: () => void; onCancel: () => void }) {
+export function ConfirmDialog(props: {
+  app: string;
+  who: string;
+  changes: ChangeSet;
+  addons?: AddonDiff;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -26,24 +33,25 @@ export function ConfirmDialog(props: { app: string; who: string; changes: Change
 
   const c = props.changes;
   const d = props.addons;
-  const movies = c.watched.filter((w) => w.type === 'movie').length;
-  const episodes = c.watched.filter((w) => w.episode !== undefined).length;
-  const series = c.watched.filter((w) => w.type === 'series' && w.episode === undefined).length;
-  const off = d?.switched.filter((a) => a.enabled === false) ?? [];
-  const on = d?.switched.filter((a) => a.enabled !== false) ?? [];
+  const movies = c.watched.filter(w => w.type === 'movie').length;
+  const episodes = c.watched.filter(w => w.episode !== undefined).length;
+  const series = c.watched.filter(w => w.type === 'series' && w.episode === undefined).length;
+  const off = d?.switched.filter(a => a.enabled === false) ?? [];
+  const on = d?.switched.filter(a => a.enabled !== false) ?? [];
   const addonCount = d ? d.added.length + d.removed.length + d.switched.length : 0;
   const total = countChanges(c) + addonCount + (d?.reordered ? 1 : 0);
 
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the click only closes on the backdrop; Escape (onCancel) is the keyboard way
     <dialog
       ref={ref}
       class="modal confirm"
       aria-labelledby="confirm-title"
-      onCancel={(e) => {
+      onCancel={e => {
         e.preventDefault();
         props.onCancel();
       }}
-      onClick={(e) => e.target === ref.current && props.onCancel()}
+      onClick={e => e.target === ref.current && props.onCancel()}
     >
       <div class="modal-inner">
         <header class="modal-head">
@@ -52,17 +60,30 @@ export function ConfirmDialog(props: { app: string; who: string; changes: Change
         </header>
 
         <ul class="changes">
-          {c.library.length > 0 && <Change icon="library" title="Library" count={c.library.length} detail={`Add ${plural(c.library.length, 'title')}`} />}
+          {c.library.length > 0 && (
+            <Change icon="library" title="Library" count={c.library.length} detail={`Add ${plural(c.library.length, 'title')}`} />
+          )}
           {c.watched.length > 0 && (
             <Change
               icon="watched"
               title="Watched"
               count={c.watched.length}
-              detail={[movies && plural(movies, 'movie'), episodes && plural(episodes, 'episode'), series && plural(series, 'whole series', 'whole series')].filter(Boolean).join(' · ')}
+              detail={[
+                movies && plural(movies, 'movie'),
+                episodes && plural(episodes, 'episode'),
+                series && plural(series, 'whole series', 'whole series'),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             />
           )}
           {c.progress.length > 0 && (
-            <Change icon="progress" title="Continue Watching" count={c.progress.length} detail={`Update progress for ${plural(c.progress.length, 'title')}`} />
+            <Change
+              icon="progress"
+              title="Continue Watching"
+              count={c.progress.length}
+              detail={`Update progress for ${plural(c.progress.length, 'title')}`}
+            />
           )}
           {d && (addonCount > 0 || d.reordered) && (
             <Change icon="addons" title="Add-ons" count={addonCount || undefined}>
@@ -96,12 +117,25 @@ export function ConfirmDialog(props: { app: string; who: string; changes: Change
   );
 }
 
-function Change(props: { icon: keyof typeof ICONS; title: string; count?: number; detail?: string; children?: ComponentChildren }) {
+function Change(props: {
+  icon: keyof typeof ICONS;
+  title: string;
+  count?: number;
+  detail?: string;
+  children?: ComponentChildren;
+}) {
   return (
     <li class={`change change-${props.icon}`}>
       <span class="change-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="20" height="20">
-          <path d={ICONS[props.icon]} fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path
+            d={ICONS[props.icon]}
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </span>
       <div class="change-text">
@@ -121,7 +155,7 @@ function AddonGroup(props: { label: string; kind: 'add' | 'remove' | 'off' | 'on
     <div class="addon-group">
       <span class="addon-group-label">{props.label}</span>
       <ul class="pills" aria-label={props.label}>
-        {props.list.map((a) => (
+        {props.list.map(a => (
           <li class={`pill pill-${props.kind}`}>
             <span aria-hidden="true">{sign}</span> {a.name || a.manifestUrl.replace(/^https?:\/\//, '')}
           </li>

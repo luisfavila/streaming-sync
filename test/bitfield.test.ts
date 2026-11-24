@@ -1,6 +1,6 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WatchedBitField, orderVideoIds } from '../src/providers/stremio/bitfield.ts';
+import { test } from 'node:test';
+import { orderVideoIds, WatchedBitField } from '../src/providers/stremio/bitfield.ts';
 
 // Vectors from stremio-core's stremio-watched-bitfield tests.
 
@@ -30,9 +30,11 @@ test('anchor points to the last watched video', () => {
 test('alternating bits survive a round trip over 499 videos', () => {
   const ids = Array.from({ length: 499 }, (_, i) => `tt2934286:1:${i + 1}`);
   const wb = WatchedBitField.empty(ids);
-  ids.forEach((_, i) => wb.set(i, i % 2 === 0));
+  for (let i = 0; i < ids.length; i++) wb.set(i, i % 2 === 0);
   const back = WatchedBitField.parse(wb.toString(), ids);
-  ids.forEach((id, i) => assert.equal(back.getVideo(id), i % 2 === 0));
+  ids.forEach((id, i) => {
+    assert.equal(back.getVideo(id), i % 2 === 0);
+  });
 });
 
 test('realigns when episodes are added before the anchor', () => {
