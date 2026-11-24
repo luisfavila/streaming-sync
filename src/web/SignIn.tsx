@@ -27,6 +27,14 @@ function saveTraktApp(a: TraktApp | undefined) {
 
 type Method = 'link' | 'password' | 'token';
 
+const METHOD_LABEL: Record<Method, string> = { link: 'Link code', password: 'Email & password', token: 'Token' };
+/** Sign-in methods per app. A pasted token is only needed for Stremio (e.g. accounts without a password). */
+const METHODS: Record<AppKind, Method[]> = {
+  stremio: ['link', 'password', 'token'],
+  nuvio: ['link', 'password'],
+  trakt: ['link'],
+};
+
 /** PKCE sign-in works when the page is built with a redirect URI that points back to where it's served. */
 const PKCE_REDIRECT = (() => {
   try {
@@ -54,8 +62,9 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
   /** Trakt with a "Sign in with Trakt" window, unless the user asked for a code. */
   const [traktCode, setTraktCode] = useState(false);
   const traktWindow = app === 'trakt' && !!PKCE_REDIRECT && !!traktApp && traktApp === BUILT_IN_APP && !traktCode;
-  const linkOnly = app === 'trakt';
-  const shownMethod: Method = linkOnly ? 'link' : method;
+  const methods = METHODS[app];
+  const linkOnly = methods.length === 1;
+  const shownMethod: Method = methods.includes(method) ? method : 'link';
 
   const stopLink = () => {
     abort.current?.abort();
@@ -127,7 +136,7 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
       {/* biome-ignore lint/a11y/useSemanticElements: a segmented toggle; a fieldset would add its own border and legend styling */}
       <div class="segmented" role="group" aria-label="App">
         {(['stremio', 'nuvio', 'trakt'] as const).map(a => (
-          <button type="button" aria-pressed={app === a} onClick={() => setApp(a)}>
+          <button type="button" class={`app-${a}`} aria-pressed={app === a} onClick={() => setApp(a)}>
             <span class={`dot dot-${a}`} aria-hidden="true" />
             {APP_NAME[a]}
           </button>
@@ -136,15 +145,9 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
 
       {!linkOnly && (
         <div class="tabs" role="tablist" aria-label="Sign-in method">
-          {(
-            [
-              ['link', 'Link code'],
-              ['password', 'Email & password'],
-              ['token', 'Token'],
-            ] as const
-          ).map(([m, label]) => (
-            <button type="button" role="tab" aria-selected={method === m} onClick={() => setMethod(m)}>
-              {label}
+          {methods.map(m => (
+            <button type="button" role="tab" aria-selected={shownMethod === m} onClick={() => setMethod(m)}>
+              {METHOD_LABEL[m]}
             </button>
           ))}
         </div>
@@ -319,25 +322,18 @@ export function SignIn(props: { onSignedIn: (a: Account) => void; onCancel?: () 
           class="stack"
           onSubmit={e => {
             e.preventDefault();
-            run(() => (app === 'stremio' ? auth.stremioToken(token) : auth.nuvioToken(token)));
+            run(() => auth.stremioToken(token));
           }}
         >
-          {app === 'stremio' ? (
-            <p class="hint">
-              On{' '}
-              <a href="https://web.stremio.com" target="_blank" rel="noopener noreferrer">
-                web.stremio.com
-              </a>
-              , signed in, open the browser console and run:
-              <CopyCode text={STREMIO_SNIPPET} />
-              Then paste what it copied below.
-            </p>
-          ) : (
-            <p class="hint">
-              Paste a Nuvio refresh token, or session JSON that contains <code>refresh_token</code>. This takes over that session:
-              the app or website you copied it from will be signed out. A link code avoids this.
-            </p>
-          )}
+          <p class="hint">
+            On{' '}
+            <a href="https://web.stremio.com" target="_blank" rel="noopener noreferrer">
+              web.stremio.com
+            </a>
+            , signed in, open the browser console and run:
+            <CopyCode text={STREMIO_SNIPPET} />
+            Then paste what it copied below.
+          </p>
           <label class="field">
             <span>{appName} token</span>
             <input

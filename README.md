@@ -28,7 +28,7 @@ To keep two accounts in step both ways, sync once, press the swap button, and sy
 |---|---|---|---|
 | **Link code** (recommended) | Shows a code; approve it in a browser where you're signed in to Stremio. Works with Facebook and Apple sign-in. | Shows a code; approve it at nuvio.tv/link. | **Sign in with Trakt** opens a Trakt window to approve in, where the page is set up for it (see below). Otherwise, or by choice, a code to enter on Trakt's activation page. |
 | **Email & password** | The password goes only to Stremio. | The password goes only to Nuvio. | — |
-| **Token** | Your `authKey`. On [web.stremio.com](https://web.stremio.com), signed in, run `copy(JSON.parse(localStorage.profile).auth.key)` in the browser console. | A refresh token, or session JSON containing `refresh_token`. This takes over that session, so the place you copied it from gets signed out. Prefer a link code. |
+| **Token** | Your `authKey`. On [web.stremio.com](https://web.stremio.com), signed in, run `copy(JSON.parse(localStorage.profile).auth.key)` in the browser console. | — | — |
 
 Only session tokens are kept, never passwords. With **Remember accounts on this device** ticked, they're kept in this browser's localStorage; otherwise they're gone when you close the page. **Sign out** ends the session if this page created it. A pasted Stremio token's session is left alone.
 

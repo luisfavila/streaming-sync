@@ -328,7 +328,8 @@ code {
 
 .segmented {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* One row: the three apps side by side. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   background: var(--surface-2);
@@ -342,19 +343,46 @@ code {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 38px;
+  gap: 7px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 8px;
   border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--muted);
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
 }
 
+.segmented button:hover:not([aria-pressed='true']) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+}
+
+/* The chosen app: raised, with a thin ring in its own colour. */
 .segmented button[aria-pressed='true'] {
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.12),
+    inset 0 0 0 1px color-mix(in srgb, var(--app, var(--border)) 45%, transparent);
+}
+
+.segmented .app-stremio {
+  --app: var(--stremio);
+}
+
+.segmented .app-nuvio {
+  --app: var(--nuvio);
+}
+
+.segmented .app-trakt {
+  --app: var(--trakt);
 }
 
 .dot {

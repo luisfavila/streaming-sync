@@ -524,9 +524,3 @@ test('Trakt: a show with an unmatched episode is not sent again (no duplicate pl
     [[SERIES, 'Trakt didn’t match some of its episodes (season 1); its episode numbering may differ']],
   );
 });
-
-test('a pasted Nuvio refresh token is accepted with or without its quotes', async () => {
-  const { nuvioToken } = await import('../src/auth.ts');
-  assert.equal((await nuvioToken('"some-refresh-token"')).who, 'me@nuvio.test');
-  assert.equal((await nuvioToken('some-refresh-token')).who, 'me@nuvio.test');
-});

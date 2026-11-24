@@ -129,23 +129,6 @@ export async function nuvioPassword(email: string, password: string): Promise<Nu
   return nuvioAccount(await nuvio.passwordLogin(email.trim(), password));
 }
 
-/** Accepts a bare refresh token, or session JSON containing refresh_token. */
-export async function nuvioToken(raw: string): Promise<NuvioAccount> {
-  let refreshToken = raw.trim();
-  try {
-    const parsed = JSON.parse(refreshToken) as
-      | string
-      | { refresh_token?: string; currentSession?: { refresh_token?: string } }
-      | null;
-    // A token pasted with its quotes parses as a plain string.
-    refreshToken = typeof parsed === 'string' ? parsed : (parsed?.refresh_token ?? parsed?.currentSession?.refresh_token ?? '');
-  } catch {
-    // not JSON: a bare token
-  }
-  if (!refreshToken) throw new Error('No refresh token found in what was pasted.');
-  return nuvioAccount(await nuvio.refreshSession(refreshToken));
-}
-
 export async function nuvioLink(): Promise<LinkCode> {
   const nonce = crypto.randomUUID();
   const start = await nuvio.startDeviceLogin(nonce, 'Streaming Sync (web)');
