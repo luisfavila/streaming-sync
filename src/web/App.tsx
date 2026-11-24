@@ -442,9 +442,10 @@ export function App() {
 
       <footer class="footer">
         <p>
-          Not affiliated with Stremio, Nuvio or Trakt. Uses Trakt's public API, and the same private APIs Stremio's and Nuvio's
-          own apps use, which may change.{' '}
-          {remember ? 'Signed-in accounts are kept in this browser only.' : 'Accounts are forgotten when you close this page.'}
+          Not affiliated with Stremio, Nuvio or Trakt. Streaming Sync uses Trakt but is not endorsed or certified by Trakt. Uses
+          Trakt's public API, and the same private APIs Stremio's and Nuvio's own apps use, which may change.{' '}
+          {remember ? 'Signed-in accounts are kept in this browser only.' : 'Accounts are forgotten when you close this page.'}{' '}
+          <a href="./privacy.html">Privacy</a>
         </p>
         <p class="credit">
           Made by{' '}
