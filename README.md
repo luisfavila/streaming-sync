@@ -123,6 +123,6 @@ Each app has a provider that reads its data into a shared model (`src/model.ts`)
 
 ## Privacy and affiliation
 
-There is no server: everything runs in your browser and goes only to the apps you sign in to. See the [privacy policy](https://luisfavila.github.io/streaming-sync/privacy.html) (`privacy.html`).
+There is no server: everything runs in your browser and goes only to the apps you sign in to. See the [privacy policy](https://luisfavila.github.io/streaming-sync/privacy).
 
 Streaming Sync is not affiliated with Stremio, Nuvio or Trakt. Streaming Sync uses Trakt but is not endorsed or certified by Trakt.
